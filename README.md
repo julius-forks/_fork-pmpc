@@ -38,6 +38,9 @@ catkin config --extend /opt/ros/melodic --cmake-args -DCMAKE_BUILD_TYPE=Release
 cd src
 git clone https://github.com/leggedrobotics/perceptive_mpc.git
 wstool init . ./perceptive_mpc/perceptive_mpc_https.rosinstall
+sudo apt-get install libtool m4 automake
+sudo apt install autoconf
+Check out this OCS2 cea7876b4ffea48bb46ddb3a5315ae6e086c5e45
 catkin build perceptive_mpc
 ```
 
