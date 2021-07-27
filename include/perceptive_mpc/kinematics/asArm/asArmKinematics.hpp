@@ -38,10 +38,10 @@
 namespace perceptive_mpc {
 
 template <typename SCALAR_T>
-class UR10Kinematics : public KinematicsInterface<SCALAR_T> {
+class asArmKinematics : public KinematicsInterface<SCALAR_T> {
  public:
   std::string armMountLinkName() const override { return "base"; }
-  std::string toolMountLinkName() const override { return "wrist_3_link"; }
+  std::string toolMountLinkName() const override { return "xarmlink6"; }
 
  protected:
   Eigen::Matrix<SCALAR_T, 4, 4> computeArmMountToToolMountTransform(const Eigen::Matrix<SCALAR_T, 6, 1>& armState) const override;
@@ -53,6 +53,6 @@ class UR10Kinematics : public KinematicsInterface<SCALAR_T> {
       const Eigen::Matrix<SCALAR_T, 4, 4>& transformWorld_X_Base = Eigen::Matrix<SCALAR_T, 4, 4>::Identity()) const override;
 };
 
-extern template class UR10Kinematics<double>;
-extern template class UR10Kinematics<CppAD::AD<CppAD::cg::CG<double>>>;
+extern template class asArmKinematics<double>;
+extern template class asArmKinematics<CppAD::AD<CppAD::cg::CG<double>>>;
 }  // namespace perceptive_mpc

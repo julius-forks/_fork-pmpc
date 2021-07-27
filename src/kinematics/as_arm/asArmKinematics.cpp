@@ -31,12 +31,12 @@
 #include <iit/rbd/traits/TraitSelector.h>
 #include "generated/transforms.h"
 
-#include <perceptive_mpc/kinematics/ur10/UR10Kinematics.hpp>
+#include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
 
 using namespace perceptive_mpc;
 
 template <typename SCALAR_T>
-Eigen::Matrix<SCALAR_T, 4, 4> UR10Kinematics<SCALAR_T>::computeArmMountToToolMountTransform(
+Eigen::Matrix<SCALAR_T, 4, 4> asArmKinematics<SCALAR_T>::computeArmMountToToolMountTransform(
     const Eigen::Matrix<SCALAR_T, 6, 1>& armState) const {
   typedef typename iit::rbd::tpl::TraitSelector<SCALAR_T>::Trait trait_t;
   typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_base_X_fr_wrist_3_link armMountToWrist3Transform;
@@ -45,7 +45,7 @@ Eigen::Matrix<SCALAR_T, 4, 4> UR10Kinematics<SCALAR_T>::computeArmMountToToolMou
 }
 
 template <typename SCALAR_T>
-Eigen::Matrix<SCALAR_T, 3, -1> UR10Kinematics<SCALAR_T>::computeArmState2MultiplePointsOnRobot(
+Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2MultiplePointsOnRobot(
     const Eigen::Matrix<SCALAR_T, 6, 1>& state, const std::vector<std::vector<double>>& points,
     const Eigen::Matrix4d& transformBase_X_ArmBase, const Eigen::Matrix4d& transformToolMount_X_Endeffector,
     const Eigen::Matrix<SCALAR_T, 4, 4>& transformWorld_X_Base) const {
@@ -149,5 +149,5 @@ Eigen::Matrix<SCALAR_T, 3, -1> UR10Kinematics<SCALAR_T>::computeArmState2Multipl
   return result;
 }
 
-template class perceptive_mpc::UR10Kinematics<double>;
-template class perceptive_mpc::UR10Kinematics<CppAD::AD<CppAD::cg::CG<double>>>;
+template class perceptive_mpc::asArmKinematics<double>;
+template class perceptive_mpc::asArmKinematics<CppAD::AD<CppAD::cg::CG<double>>>;
