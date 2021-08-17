@@ -43,8 +43,8 @@ class asArmKinematics : public KinematicsInterface<SCALAR_T> {
   using Base = KinematicsInterface<SCALAR_T>;
 
   asArmKinematics(const KinematicInterfaceConfig& config);
-  std::string armMountLinkName() const override { return "arm_mount"; }
-  std::string toolMountLinkName() const override { return "WRIST_2"; }
+  std::string armMountLinkName() const override { return "xarm_mount"; }
+  std::string toolMountLinkName() const override { return "xarmlink6"; }
 
  protected:
   Eigen::Matrix<SCALAR_T, 4, 4> computeArmMountToToolMountTransform(const Eigen::Matrix<SCALAR_T, 6, 1>& armState) const override;

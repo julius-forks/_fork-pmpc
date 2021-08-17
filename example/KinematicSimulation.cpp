@@ -137,7 +137,7 @@ void KinematicSimulation::loadTransforms() {
   {
     geometry_msgs::TransformStamped transformStamped;
     try {
-      transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), "ENDEFFECTOR", ros::Time(0), ros::Duration(1.0));
+      transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), "extruder_ee", ros::Time(0), ros::Duration(1.0));
     } catch (tf2::TransformException& ex) {
       ROS_ERROR("%s", ex.what());
       throw;
@@ -432,7 +432,7 @@ void KinematicSimulation::publishBaseTransform(const Observation& observation) {
 void KinematicSimulation::publishArmState(const Observation& observation) {
   sensor_msgs::JointState armState;
   armState.header.stamp = ros::Time::now();
-  armState.name = {"SH_ROT", "SH_FLE", "EL_FLE", "EL_ROT", "WR_FLE", "WR_ROT"};
+  armState.name = {"xarmjoint1", "xarmjoint2", "xarmjoint3", "xarmjoint4", "xarmjoint5", "xarmjoint6"};
   armState.position.resize(Definitions::ARM_STATE_DIM_);
   Eigen::VectorXd armConfiguration = observation.state().tail<6>();
   for (size_t joint_idx = 0; joint_idx < Definitions::ARM_STATE_DIM_; joint_idx++) {
