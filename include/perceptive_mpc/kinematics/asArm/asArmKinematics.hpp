@@ -40,7 +40,7 @@ namespace perceptive_mpc {
 template <typename SCALAR_T>
 class asArmKinematics : public KinematicsInterface<SCALAR_T> {
  public:
-  std::string armMountLinkName() const override { return "base"; }
+  std::string armMountLinkName() const override { return "xarmlink_base"; }
   std::string toolMountLinkName() const override { return "xarmlink6"; }
 
  protected:

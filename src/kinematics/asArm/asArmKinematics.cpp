@@ -39,9 +39,10 @@ template <typename SCALAR_T>
 Eigen::Matrix<SCALAR_T, 4, 4> asArmKinematics<SCALAR_T>::computeArmMountToToolMountTransform(
     const Eigen::Matrix<SCALAR_T, 6, 1>& armState) const {
   typedef typename iit::rbd::tpl::TraitSelector<SCALAR_T>::Trait trait_t;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_base_X_fr_wrist_3_link armMountToWrist3Transform;
-  const Eigen::Matrix<SCALAR_T, 4, 4> homBase2Wrist2Transform = armMountToWrist3Transform.update(armState);
-  return homBase2Wrist2Transform;
+  typename iit::asArm::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarm_mount_X_fr_xarmlink3 armmountTolink3;
+  typename iit::asArm::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarmlink3_X_fr_xarmlink6 link3Tolink6;
+  const Eigen::Matrix<SCALAR_T, 4, 4> armmountTolink6 = armmountTolink3.update(armState) * link3Tolink6.update(armState);
+  return armmountTolink6;
 }
 
 template <typename SCALAR_T>
@@ -67,14 +68,15 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   Eigen::Matrix<SCALAR_T, 4, 4> transformWorld_X_Endeffector = transformWorld_X_Base;
 
   typedef typename iit::rbd::tpl::TraitSelector<SCALAR_T>::Trait trait_t;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_base_X_fr_shoulder_link fr_base_X_fr_shoulder_link;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_shoulder_link_X_fr_upper_arm_link shoulder_link_X_fr_upper_arm_link;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_upper_arm_link_X_fr_forearm_link fr_upper_arm_link_X_fr_forearm_link;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_forearm_link_X_fr_wrist_1_link fr_forearm_link_X_fr_wrist_1_link;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_wrist_1_link_X_fr_wrist_2_link fr_wrist_1_link_X_fr_wrist_2_link;
-  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_wrist_2_link_X_fr_wrist_3_link wrist_2_link_X_fr_wrist_3_link;
+  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarm_mount_X_fr_xarmlink1 fr_xarm_mount_X_fr_xarmlink1;
+  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarmlink1_X_fr_xarmlink2 fr_xarmlink1_X_fr_xarmlink2;
+  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarmlink2_X_fr_xarmlink3 fr_xarmlink2_X_fr_xarmlink3;
+  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarmlink3_X_fr_xarmlink4 fr_xarmlink3_X_fr_xarmlink4;
+  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarmlink4_X_fr_xarmlink5 fr_xarmlink4_X_fr_xarmlink5;
+  typename iit::ur10::tpl::HomogeneousTransforms<trait_t>::Type_fr_xarmlink5_X_fr_xarmlink6 fr_xarmlink5_X_fr_xarmlink6;
 
   Eigen::Matrix<SCALAR_T, 4, 4> nextStep = transformBase_X_ArmBase.cast<SCALAR_T>();
+  
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];
@@ -83,7 +85,7 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   linkIndex++;
   transformWorld_X_Endeffector = transformWorld_X_Endeffector * nextStep;
 
-  nextStep = fr_base_X_fr_shoulder_link.update(state);
+  nextStep = fr_xarm_mount_X_fr_xarmlink1.update(state);
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];
@@ -92,7 +94,7 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   linkIndex++;
   transformWorld_X_Endeffector = transformWorld_X_Endeffector * nextStep;
 
-  nextStep = shoulder_link_X_fr_upper_arm_link.update(state);
+  nextStep = fr_xarmlink1_X_fr_xarmlink2.update(state);
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];
@@ -101,7 +103,7 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   linkIndex++;
   transformWorld_X_Endeffector = transformWorld_X_Endeffector * nextStep;
 
-  nextStep = fr_upper_arm_link_X_fr_forearm_link.update(state);
+  nextStep = fr_xarmlink2_X_fr_xarmlink3.update(state);
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];
@@ -110,7 +112,7 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   linkIndex++;
   transformWorld_X_Endeffector = transformWorld_X_Endeffector * nextStep;
 
-  nextStep = fr_forearm_link_X_fr_wrist_1_link.update(state);
+  nextStep = fr_xarmlink3_X_fr_xarmlink4.update(state);
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];
@@ -119,7 +121,7 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   linkIndex++;
   transformWorld_X_Endeffector = transformWorld_X_Endeffector * nextStep;
 
-  nextStep = fr_wrist_1_link_X_fr_wrist_2_link.update(state);
+  nextStep = fr_xarmlink4_X_fr_xarmlink5.update(state);
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];
@@ -128,7 +130,7 @@ Eigen::Matrix<SCALAR_T, 3, -1> asArmKinematics<SCALAR_T>::computeArmState2Multip
   linkIndex++;
   transformWorld_X_Endeffector = transformWorld_X_Endeffector * nextStep;
 
-  nextStep = wrist_2_link_X_fr_wrist_3_link.update(state);
+  nextStep = fr_xarmlink5_X_fr_xarmlink6.update(state);
   for (int i = 0; i < points[linkIndex].size(); i++) {
     Eigen::Matrix<SCALAR_T, 4, 1> directionVector = nextStep.col(3);
     directionVector.template head<3>() = directionVector.template head<3>() * (SCALAR_T)points[linkIndex][i];

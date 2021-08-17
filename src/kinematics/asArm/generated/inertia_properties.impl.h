@@ -1,16 +1,16 @@
 template <typename TRAIT>
 iit::asArm::dyn::tpl::InertiaProperties<TRAIT>::InertiaProperties()
 {
-    com_base_link = iit::rbd::Vector3d(0.175,0.0,0.03803).cast<Scalar>();
-    tensor_base_link.fill(
+    com_xarm_mount = iit::rbd::Vector3d(0.0,0.0,0.09103).cast<Scalar>();
+    tensor_xarm_mount.fill(
         Scalar(2.7),
-        com_base_link,
+        com_xarm_mount,
         rbd::Utils::buildInertiaTensor(
-                Scalar(0.008853708),
-                Scalar(0.0915342),
-                Scalar(0.084906496),
+                Scalar(0.027322195),
+                Scalar(0.027315184),
+                Scalar(0.002219),
                 Scalar(3.5E-6),
-                Scalar(0.017956674),
+                Scalar(-1.25E-5),
                 Scalar(-1.67E-6)) );
 
     com_xarmlink1 = iit::rbd::Vector3d(-0.002,0.02692,-0.01332).cast<Scalar>();

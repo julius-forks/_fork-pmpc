@@ -32,21 +32,21 @@ class InertiaProperties {
 
         InertiaProperties();
         ~InertiaProperties();
-        const IMatrix& getTensor_base_link() const;
+        const IMatrix& getTensor_xarm_mount() const;
         const IMatrix& getTensor_xarmlink1() const;
         const IMatrix& getTensor_xarmlink2() const;
         const IMatrix& getTensor_xarmlink3() const;
         const IMatrix& getTensor_xarmlink4() const;
         const IMatrix& getTensor_xarmlink5() const;
         const IMatrix& getTensor_xarmlink6() const;
-        Scalar getMass_base_link() const;
+        Scalar getMass_xarm_mount() const;
         Scalar getMass_xarmlink1() const;
         Scalar getMass_xarmlink2() const;
         Scalar getMass_xarmlink3() const;
         Scalar getMass_xarmlink4() const;
         Scalar getMass_xarmlink5() const;
         Scalar getMass_xarmlink6() const;
-        const Vec3d& getCOM_base_link() const;
+        const Vec3d& getCOM_xarm_mount() const;
         const Vec3d& getCOM_xarmlink1() const;
         const Vec3d& getCOM_xarmlink2() const;
         const Vec3d& getCOM_xarmlink3() const;
@@ -57,14 +57,14 @@ class InertiaProperties {
 
     private:
 
-        IMatrix tensor_base_link;
+        IMatrix tensor_xarm_mount;
         IMatrix tensor_xarmlink1;
         IMatrix tensor_xarmlink2;
         IMatrix tensor_xarmlink3;
         IMatrix tensor_xarmlink4;
         IMatrix tensor_xarmlink5;
         IMatrix tensor_xarmlink6;
-        Vec3d com_base_link;
+        Vec3d com_xarm_mount;
         Vec3d com_xarmlink1;
         Vec3d com_xarmlink2;
         Vec3d com_xarmlink3;
@@ -77,8 +77,8 @@ template <typename TRAIT>
 inline InertiaProperties<TRAIT>::~InertiaProperties() {}
 
 template <typename TRAIT>
-inline const typename InertiaProperties<TRAIT>::IMatrix& InertiaProperties<TRAIT>::getTensor_base_link() const {
-    return this->tensor_base_link;
+inline const typename InertiaProperties<TRAIT>::IMatrix& InertiaProperties<TRAIT>::getTensor_xarm_mount() const {
+    return this->tensor_xarm_mount;
 }
 template <typename TRAIT>
 inline const typename InertiaProperties<TRAIT>::IMatrix& InertiaProperties<TRAIT>::getTensor_xarmlink1() const {
@@ -105,8 +105,8 @@ inline const typename InertiaProperties<TRAIT>::IMatrix& InertiaProperties<TRAIT
     return this->tensor_xarmlink6;
 }
 template <typename TRAIT>
-inline typename InertiaProperties<TRAIT>::Scalar InertiaProperties<TRAIT>::getMass_base_link() const {
-    return this->tensor_base_link.getMass();
+inline typename InertiaProperties<TRAIT>::Scalar InertiaProperties<TRAIT>::getMass_xarm_mount() const {
+    return this->tensor_xarm_mount.getMass();
 }
 template <typename TRAIT>
 inline typename InertiaProperties<TRAIT>::Scalar InertiaProperties<TRAIT>::getMass_xarmlink1() const {
@@ -133,8 +133,8 @@ inline typename InertiaProperties<TRAIT>::Scalar InertiaProperties<TRAIT>::getMa
     return this->tensor_xarmlink6.getMass();
 }
 template <typename TRAIT>
-inline const typename InertiaProperties<TRAIT>::Vec3d& InertiaProperties<TRAIT>::getCOM_base_link() const {
-    return this->com_base_link;
+inline const typename InertiaProperties<TRAIT>::Vec3d& InertiaProperties<TRAIT>::getCOM_xarm_mount() const {
+    return this->com_xarm_mount;
 }
 template <typename TRAIT>
 inline const typename InertiaProperties<TRAIT>::Vec3d& InertiaProperties<TRAIT>::getCOM_xarmlink1() const {

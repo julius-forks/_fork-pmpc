@@ -32,7 +32,7 @@ enum JointIdentifiers {
 };
 
 enum LinkIdentifiers {
-    BASE_LINK = 0
+    XARM_MOUNT = 0
     , XARMLINK1
     , XARMLINK2
     , XARMLINK3
@@ -45,7 +45,7 @@ static const JointIdentifiers orderedJointIDs[jointsCount] =
     {XARMJOINT1,XARMJOINT2,XARMJOINT3,XARMJOINT4,XARMJOINT5,XARMJOINT6};
 
 static const LinkIdentifiers orderedLinkIDs[linksCount] =
-    {BASE_LINK,XARMLINK1,XARMLINK2,XARMLINK3,XARMLINK4,XARMLINK5,XARMLINK6};
+    {XARM_MOUNT,XARMLINK1,XARMLINK2,XARMLINK3,XARMLINK4,XARMLINK5,XARMLINK6};
 
 }
 }
