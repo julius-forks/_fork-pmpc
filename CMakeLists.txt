@@ -81,6 +81,7 @@ add_library(${PROJECT_NAME}
   src/OperatingPoint.cpp
   src/Conversions.cpp
   src/kinematics/KinematicsInterface.cpp
+  src/kinematics/asArm/asArmKinematics.cpp
   src/kinematics/mabi/MabiKinematics.cpp
   src/kinematics/ur10/UR10Kinematics.cpp
   src/kinematics/ur5/UR5Kinematics.cpp

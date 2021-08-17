@@ -30,7 +30,7 @@
 
 #include <example/KinematicSimulation.h>
 
-#include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
+#include <perceptive_mpc/kinematics/mabi/MabiKinematics.hpp>
 
 #include <tf2_eigen/tf2_eigen.h>
 #include <tf2_ros/transform_listener.h>
@@ -50,12 +50,12 @@ bool KinematicSimulation::run() {
   parseParameters();
   loadTransforms();
 
-  kinematicInterfaceConfig_.baseMass = 35;
+  kinematicInterfaceConfig_.baseMass = 70;
   kinematicInterfaceConfig_.baseCOM = Eigen::Vector3d::Zero();
 
   PerceptiveMpcInterfaceConfig config;
   config.taskFileName = mpcTaskFile_;
-  config.kinematicsInterface = std::make_shared<asArmKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
+  config.kinematicsInterface = std::make_shared<MabiKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
   config.voxbloxConfig = configureCollisionAvoidance(config.kinematicsInterface);
   ocs2Interface_.reset(new PerceptiveMpcInterface(config));
   mpcInterface_ = std::make_shared<MpcInterface>(ocs2Interface_->getMpc());
@@ -111,7 +111,7 @@ bool KinematicSimulation::run() {
 }
 
 void KinematicSimulation::loadTransforms() {
-  asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
+  MabiKinematics<double> kinematics(kinematicInterfaceConfig_);
   tf2_ros::Buffer tfBuffer;
   tf2_ros::TransformListener tfListener(tfBuffer);
   {
@@ -463,7 +463,7 @@ void KinematicSimulation::publishEndEffectorPose() {
 }
 
 void KinematicSimulation::publishZmp(const Observation& observation, const ocs2::CostDesiredTrajectories& costDesiredTrajectories) {
-  asArmKinematics<double> kinematicsInterface(kinematicInterfaceConfig_);
+  MabiKinematics<double> kinematicsInterface(kinematicInterfaceConfig_);
   Eigen::Vector3d com = kinematicsInterface.getCOMBaseFrame(observation.state());
   geometry_msgs::PointStamped comMsg;
   comMsg.header.frame_id = "base_link";
@@ -488,7 +488,7 @@ kindr::HomTransformQuatD KinematicSimulation::getEndEffectorPose() {
     Eigen::Matrix<double, 4, 4> endEffectorToWorldTransform;
     Eigen::VectorXd currentState = observation_.state();
 
-    asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
+    MabiKinematics<double> kinematics(kinematicInterfaceConfig_);
     kinematics.computeState2EndeffectorTransform(endEffectorToWorldTransform, currentState);
     Eigen::Quaterniond eigenBaseRotation(endEffectorToWorldTransform.topLeftCorner<3, 3>());
     return kindr::HomTransformQuatD(kindr::Position3D(endEffectorToWorldTransform.topRightCorner<3, 1>()),
