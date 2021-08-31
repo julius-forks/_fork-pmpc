@@ -60,14 +60,14 @@
 
 namespace perceptive_mpc {
 
-class KinematicSimulation {
+class AsMPC {
  public:
   typedef ocs2::SystemObservation<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> Observation;
   typedef ocs2::MPC_MRT_Interface<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> MpcInterface;
   typedef MpcInterface::input_vector_t InputVector;
   using reference_vector_t = Eigen::Matrix<double, Definitions::REFERENCE_DIM, 1>;
 
-  explicit KinematicSimulation(const ros::NodeHandle& nh = ros::NodeHandle());
+  explicit AsMPC(const ros::NodeHandle& nh = ros::NodeHandle());
 
   bool run();
 
@@ -84,7 +84,7 @@ class KinematicSimulation {
   std::string end_effector_frame_;
   std::string base_frame_;
   double mpcUpdateFrequency_;
-  double tfUpdateFrequency_;
+  double rosPublishFrequency_;
   double controlLoopFrequency_;
   double maxLinearVelocity_;
   double maxAngularVelocity_;
@@ -101,6 +101,7 @@ class KinematicSimulation {
 
   boost::shared_mutex observationMutex_;
   Observation observation_;
+  
 
   KinematicInterfaceConfig kinematicInterfaceConfig_;
 
@@ -109,14 +110,11 @@ class KinematicSimulation {
 
   // ros
   ros::NodeHandle nh_;
-  ros::Publisher armStatePublisher_;
-  ros::Publisher endEffectorPosePublisher_;
-  ros::Publisher pointsOnRobotPublisher_;
-  ros::Publisher comPublisher_;
-  ros::Publisher zmpPublisher_;
-  ros::Subscriber desiredEndEffectorPoseSubscriber_;
-  ros::Subscriber desiredEndEffectorWrenchPoseTrajectorySubscriber_;
+  ros::Subscriber goalPoseSubscriber_;
+  ros::Subscriber jointStatesSubscriber;  
   tf::TransformBroadcaster tfBroadcaster_;
+  tf2_ros::Buffer tfBuffer_;
+  tf2_ros::TransformListener tfListener_;
 
  protected:
   // thread 1 simulates the control loop: query new mpc plan, writes observation
@@ -125,24 +123,10 @@ class KinematicSimulation {
   // thread 2 is the mpc solver
   bool mpcUpdate(ros::Rate rate);
 
-  // thread 3 updates the tf for visualization
-  bool tfUpdate(ros::Rate rate);
-
   // compute the current end effector Pose on the base of the latest observation
   kindr::HomTransformQuatD getEndEffectorPose();
 
-  // publish the transform from odom to the robot base
-  void publishBaseTransform(const Observation& observation);
-
-  // publish the joint state message of the arm state
-  void publishArmState(const Observation& observation);
-
-  // publish the current end effector pose to ros
-  void publishEndEffectorPose();
-
-  void publishZmp(const Observation & observation, const ocs2::CostDesiredTrajectories& costDesiredTrajectories);
-
-    // parse all ros parameters
+  // parse all ros parameters
   void parseParameters();
 
   std::shared_ptr<VoxbloxCostConfig> configureCollisionAvoidance(std::shared_ptr<KinematicsInterfaceAD> kinematicInterface);
@@ -150,7 +134,8 @@ class KinematicSimulation {
   // update the desired end effector pose on ros msg
   void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
 
-  void desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory);
+  // update joint_state
+  void jointStatesCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
 
   // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
   void setCurrentObservation(const Observation& observation);
