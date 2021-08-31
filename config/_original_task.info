@@ -121,8 +121,8 @@ initialState
   (1,0)  0.0      ; qy
   (2,0)  0.0      ; qz
   (3,0)  1.0      ; qw
-  (4,0)  0.0      ; x
-  (5,0)  0.0      ; y
+  (4,0)  0.1      ; x
+  (5,0)  0.2      ; y
   (6,0)  0.0      ; z
   (7,0)  0.0      ; arm_1
   (8,0)  -1     ; arm_2
@@ -152,8 +152,8 @@ ee_tracking_task
   {
     scaling 1e+0
 
-    (0,0) 10.0  ; base_drive
-    (1,1) 50.0  ; base_turn
+    (0,0) 5.0  ; base_drive
+    (1,1) 5.0  ; base_turn
     (2,2) 1.0  ; arm_1
     (3,3) 1.0  ; arm_2
     (4,4) 1.0  ; arm_3
@@ -165,7 +165,7 @@ ee_tracking_task
   ; final state weight matrix
   Q_final
   {
-    scaling 1e+0
+    scaling 0e+1
 
     (0,0) 10.0  ; x
     (1,1) 10.0  ; y
@@ -191,16 +191,16 @@ obstacle_cost
     sigma               10
 
     ; base dimensions
-    widthX              0.85
-    widthY              0.5
+    widthX              1.1
+    widthY              1.0
 
     ;reach of the arm
-    reach               0.7
+    reach               1.1
 }
 
 stability_soft_constraint
 {
-    activate        0
+    activate        1
     mu              5e-3
     delta           1e-4
     support_circle_radius 0.3
@@ -220,31 +220,31 @@ limits
   position_mpc_margin_deg 5
   lower
   {
-    (0,0)  -3.145     ; arm_1
-    (1,0)  -2.05     ; arm_2
-    (2,0)  -3.145     ; arm_3
-    (3,0)  -3.145     ; arm_4
-    (4,0)  -1.69297     ; arm_5
-    (5,0)  -3.145     ; arm_6
+    (0,0)  -5.23599     ; arm_1
+    (1,0)  -3.14159     ; arm_2
+    (2,0)  -2.47837     ; arm_3
+    (3,0)  -5.23599     ; arm_4
+    (4,0)  -2.04204     ; arm_5
+    (5,0)  -3.14159     ; arm_6
   }
   upper
   {
-    (0,0)  3.145     ; arm_1
-    (1,0)  2.09         ; arm_2
-    (2,0)  0.19198     ; arm_3
-    (3,0)  3.145     ; arm_4
-    (4,0)  3.145     ; arm_5
-    (5,0)  3.145     ; arm_6
+    (0,0)  5.23599     ; arm_1
+    (1,0)  0.0         ; arm_2
+    (2,0)  2.47837     ; arm_3
+    (3,0)  5.23599     ; arm_4
+    (4,0)  2.04204     ; arm_5
+    (5,0)  3.14159     ; arm_6
   }
   velocity
   {
-    (0,0)  0.5     ; base_linear [m/s]
-    (1,0)  1.5     ; base_rot [rad/s]
-    (2,0)  1     ; arm_1 [rad/s]
-    (3,0)  1     ; arm_2 [rad/s]
-    (4,0)  1     ; arm_3 [rad/s]
-    (5,0)  1     ; arm_4 [rad/s]
-    (6,0)  1     ; arm_5 [rad/s]
-    (7,0)  1     ; arm_6 [rad/s]
+    (0,0)  10.0     ; base_linear [m/s]
+    (1,0)  10.5     ; base_rot [rad/s]
+    (2,0)  1.2     ; arm_1 [rad/s]
+    (3,0)  1.2     ; arm_2 [rad/s]
+    (4,0)  2.4     ; arm_3 [rad/s]
+    (5,0)  2.4     ; arm_4 [rad/s]
+    (6,0)  4.7     ; arm_5 [rad/s]
+    (7,0)  4.7     ; arm_6 [rad/s]
   }
 }

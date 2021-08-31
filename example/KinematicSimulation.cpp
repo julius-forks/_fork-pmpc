@@ -50,9 +50,6 @@ bool KinematicSimulation::run() {
   parseParameters();
   loadTransforms();
 
-  kinematicInterfaceConfig_.baseMass = 35;
-  kinematicInterfaceConfig_.baseCOM = Eigen::Vector3d::Zero();
-
   PerceptiveMpcInterfaceConfig config;
   config.taskFileName = mpcTaskFile_;
   config.kinematicsInterface = std::make_shared<asArmKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
@@ -68,9 +65,6 @@ bool KinematicSimulation::run() {
   setCurrentObservation(observation_);
   ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
   ROS_INFO_STREAM("Initial time (delta): " << observation_.time() - initialTime_);
-
-  // TODO: uncomment for admittance control on hardware:
-  // admittanceReferenceModule.initialize();
 
   initializeCostDesiredTrajectory();
 
@@ -117,7 +111,7 @@ void KinematicSimulation::loadTransforms() {
   {
     geometry_msgs::TransformStamped transformStamped;
     try {
-      transformStamped = tfBuffer.lookupTransform("base_link", kinematics.armMountLinkName(), ros::Time(0), ros::Duration(1.0));
+      transformStamped = tfBuffer.lookupTransform(base_frame_, kinematics.armMountLinkName(), ros::Time(0), ros::Duration(1.0));
     } catch (tf2::TransformException& ex) {
       ROS_ERROR("%s", ex.what());
       throw;
@@ -137,7 +131,7 @@ void KinematicSimulation::loadTransforms() {
   {
     geometry_msgs::TransformStamped transformStamped;
     try {
-      transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), "extruder_ee", ros::Time(0), ros::Duration(1.0));
+      transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), end_effector_frame_, ros::Time(0), ros::Duration(1.0));
     } catch (tf2::TransformException& ex) {
       ROS_ERROR("%s", ex.what());
       throw;
@@ -158,13 +152,20 @@ void KinematicSimulation::loadTransforms() {
 void KinematicSimulation::parseParameters() {
   ros::NodeHandle pNh("~");
 
-  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
+  kinematicInterfaceConfig_.baseMass = pNh.param<double>("base_mass", 35);
+  
+  auto _v =pNh.param<std::vector<double>>("base_com", {0,0,0});
+  kinematicInterfaceConfig_.baseCOM =  Eigen::Vector3d(_v[0],_v[1],_v[2]);
+  end_effector_frame_ = pNh.param<std::string>("end_effector_frame", "ee");
+  base_frame_ = pNh.param<std::string>("base_frame", "base_link");
 
+  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
+  // Seems these are in EE frame
   mpcUpdateFrequency_ = pNh.param<double>("mpc_update_frequency", 100);
   tfUpdateFrequency_ = pNh.param<double>("tf_update_frequency", 10);
   maxLinearVelocity_ = pNh.param<double>("max_linear_velocity", 1.0);
   maxAngularVelocity_ = pNh.param<double>("max_angular_velocity", 1.0);
-  controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 200);
+  controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 100);
   auto defaultForceStd = pNh.param<std::vector<double>>("default_external_force", std::vector<double>());
   if (defaultForceStd.size() == 3) {
     defaultForce_ = Eigen::Vector3d::Map(defaultForceStd.data(), 3);
