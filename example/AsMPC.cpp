@@ -33,7 +33,6 @@
 #include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
 
 #include <tf2_eigen/tf2_eigen.h>
-#include <tf2_ros/transform_listener.h>
 
 #include <perceptive_mpc/costs/VoxbloxCost.h>
 
@@ -51,23 +50,21 @@ bool AsMPC::run()
   parseParameters();
   loadTransforms();
 
+  // PMPC stuff
   PerceptiveMpcInterfaceConfig config;
   config.taskFileName = mpcTaskFile_;
   config.kinematicsInterface = std::make_shared<asArmKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
   config.voxbloxConfig = configureCollisionAvoidance(config.kinematicsInterface);
   pmpcInterface_.reset(new PerceptiveMpcInterface(config));
   mpcInterface_ = std::make_shared<MpcInterface>(pmpcInterface_->getMpc());
-  mpcInterface_->reset();
+  mpcInterface_->reset(); 
   observation_.state() = pmpcInterface_->getInitialState();
   observation_.time() = ros::Time::now().toSec();
+  //Update optimal and imitial states. NOTE these will be overwritten by ROS
   optimalState_ = observation_.state();
   initialTime_ = observation_.time();
-
   setCurrentObservation(observation_);
-  ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
-  ROS_INFO_STREAM("Initial time (delta): " << observation_.time() - initialTime_);
 
-  initializeCostDesiredTrajectory();
 
   // Init ros stuff
   jointStatesSubscriber_ =
@@ -76,11 +73,36 @@ bool AsMPC::run()
   while (ros::ok() && jointStatesSubscriber_.getNumPublishers() == 0)
   {
     ros::Rate(100).sleep();
-  }
-  ROS_INFO("Joint states are flowing");
-
+  }  
+  ROS_INFO("Joint states are flowing");  
   goalPoseSubscriber_ =
       nh_.subscribe("/perceptive_mpc/desired_end_effector_pose", 1, &AsMPC::desiredEndEffectorPoseCb, this);
+
+  armJointVelPub_ = nh_.advertise<std_msgs::Float32MultiArray>("armjointvelcmd_topic", 1);
+  baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
+
+  //Assure starting state is initial state. i.e. we have a recent observation
+  ROS_INFO("Waiting for obeservation to be updated");
+  ros::Rate r(10); // 10 hz
+  while (ros::ok() && abs( ros::Time::now().toSec() - observation_.time())<0.1)
+  {    
+    ros::spinOnce();
+    r.sleep();
+  }
+  ROS_INFO("Observation was updated");
+  ROS_INFO("Updating optimal and inital state to current state.");
+  optimalState_ = observation_.state();
+  initialTime_ = observation_.time();
+  setCurrentObservation(observation_);
+  
+
+
+  ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
+  ROS_INFO_STREAM("Initial time (delta): " << observation_.time() - initialTime_);
+
+  initializeCostDesiredTrajectory();
+
+  
 
   // Tracker worker
   std::thread trackerWorker(&AsMPC::trackerLoop, this, ros::Rate(controlLoopFrequency_));
@@ -97,8 +119,8 @@ bool AsMPC::run()
 
 void AsMPC::loadTransforms()
 {
-  tf2_ros::Buffer tfBuffer_();
-  tf2_ros::TransformListener tfListener_(tfBuffer_);
+  
+  tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
 
   asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
   
@@ -161,6 +183,7 @@ void AsMPC::parseParameters()
   kinematicInterfaceConfig_.baseCOM = Eigen::Vector3d(_v[0], _v[1], _v[2]);
   end_effector_frame_ = pNh.param<std::string>("end_effector_frame", "ee");
   base_frame_ = pNh.param<std::string>("base_frame", "base_link");
+  odom_frame_ = pNh.param<std::string>("odom_frame", "odom");
 
   mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
   // Seems these are in EE frame
@@ -179,6 +202,11 @@ void AsMPC::parseParameters()
   {
     defaultTorque_ = Eigen::Vector3d::Map(defaultTorqueStd.data(), 3);
   }
+  
+  armJointVelMsg_.layout.dim.push_back(std_msgs::MultiArrayDimension());
+  armJointVelMsg_.layout.dim[0].size = 1;
+  armJointVelMsg_.layout.dim[0].stride = 1;  
+  armJointVelMsg_.layout.dim[0].stride = 1;  
 }
 
 bool AsMPC::trackerLoop(ros::Rate rate)
@@ -213,8 +241,15 @@ bool AsMPC::trackerLoop(ros::Rate rate)
       try
       {
         mpcInterface_->updatePolicy();
-        mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
-        // TODO: for integration on hardware, send the computed control inputs to the motor controllers
+        mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);           
+
+        {
+          boost::unique_lock<boost::shared_mutex> lock(controlInputMutex_);
+          controlInput_ = controlInput;
+        }
+
+        pubControlInput();
+
       }
       catch (const std::runtime_error &ex)
       {
@@ -277,6 +312,7 @@ bool AsMPC::mpcUpdate(ros::Rate rate)
       }
       {
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
+
         setCurrentObservation(observation_);
       }
       if (esdfCachingServer_)
@@ -360,12 +396,57 @@ void AsMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &m
   desiredWrenchPoseTrajectoryCb(wrenchPoseTrajectory);
 }
 
-void AsMPC::jointStatesCb(const sensor_msgs::JointState &msgPtr)
+void AsMPC::desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory) {
+  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+  costDesiredTrajectories_.clear();
+  int N = wrenchPoseTrajectory.posesWrenches.size();
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+  kindr::HomTransformQuatD lastPose;
+  for (int i = 0; i < N; i++) {
+    kindr::HomTransformQuatD desiredPose;
+    reference_vector_t reference;
+    kindr_ros::convertFromRosGeometryMsg(wrenchPoseTrajectory.posesWrenches[i].pose, desiredPose);
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+    Eigen::Vector3d force;
+    tf2::fromMsg(wrenchPoseTrajectory.posesWrenches[i].wrench.force, force);
+    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
+    Eigen::Vector3d torque;
+    tf2::fromMsg(wrenchPoseTrajectory.posesWrenches[i].wrench.torque, torque);
+    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
+    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference;
+
+    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+
+    if (i == 0) {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
+    } else {
+      auto minTimeLinear = (desiredPose.getPosition() - lastPose.getPosition()).norm() / maxLinearVelocity_;
+      auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(lastPose.getRotation())) / maxAngularVelocity_;
+
+      auto lastOriginalTimeStamp = ros::Time(wrenchPoseTrajectory.posesWrenches[i - 1].header.stamp).toSec();
+      auto currentOriginalTimeStamp = ros::Time(wrenchPoseTrajectory.posesWrenches[i].header.stamp).toSec();
+      double originalTimingDiff = currentOriginalTimeStamp - lastOriginalTimeStamp;
+      double segmentDuration = std::max(originalTimingDiff, std::max(minTimeLinear, minTimeAngular));
+
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + segmentDuration;
+    }
+
+    lastPose = desiredPose;
+  }
+}
+
+
+
+
+void AsMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
 {
   geometry_msgs::TransformStamped ts;
     try
     {
-      ts = tfBuffer_.lookupTransform(odom_frame_, base_frame_, ros::Time.now(), ros::Duration(0.15));
+      ts = tfBuffer_.lookupTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(0.15));
     }
     catch (tf2::TransformException &ex)
     {
@@ -374,7 +455,7 @@ void AsMPC::jointStatesCb(const sensor_msgs::JointState &msgPtr)
     }
 
   {      
-    boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
+    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);
     observation_.state(0) = ts.transform.rotation.x;
     observation_.state(1) = ts.transform.rotation.y;
     observation_.state(2) = ts.transform.rotation.z;
@@ -382,20 +463,36 @@ void AsMPC::jointStatesCb(const sensor_msgs::JointState &msgPtr)
     observation_.state(4) = ts.transform.translation.x;
     observation_.state(5) = ts.transform.translation.y;
     observation_.state(6) = ts.transform.translation.z;
-    observation_.state(7) = msgPtr.position.at(0);
-    observation_.state(8) = msgPtr.position.at(1);
-    observation_.state(9) = msgPtr.position.at(2);
-    observation_.state(10) = msgPtr.position.at(3);
-    observation_.state(11) = msgPtr.position.at(4);
-    observation_.state(12) = msgPtr.position.at(5);
-    observation_.time() = msgPtr.header.stamp;
+    observation_.state(7) = msgPtr->position[0];
+    observation_.state(8) = msgPtr->position[1];
+    observation_.state(9) = msgPtr->position[2];
+    observation_.state(10) = msgPtr->position[3];
+    observation_.state(11) = msgPtr->position[4];
+    observation_.state(12) = msgPtr->position[5];
+    observation_.time() = msgPtr->header.stamp.toSec();    
   }
 }
 
-void AsMPC::pubControlInput(const sensor_msgs::JointState &msgPtr)
+void AsMPC::pubControlInput()
 {
-//  base twist
-//  arm joint states
+
+  MpcInterface::input_vector_t controlInput;
+  {
+    boost::shared_lock<boost::shared_mutex> lock(controlInputMutex_);
+    controlInput = controlInput_;
+  }
+  baseTwistMsg_.linear.x=controlInput[0];
+  baseTwistMsg_.angular.z=controlInput[1];
+
+  armJointVelMsg_.data.clear();  
+  for (int i = 2; i < 8; i++)
+  {			
+    armJointVelMsg_.data.push_back(controlInput[i]);
+  }  
+
+  baseTwistPub_.publish(baseTwistMsg_);
+  armJointVelPub_.publish(armJointVelMsg_);
+
 }
 
 kindr::HomTransformQuatD AsMPC::getEndEffectorPose()

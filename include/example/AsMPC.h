@@ -42,12 +42,15 @@
 
 // ros
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
+#include <std_msgs/Float32MultiArray.h>
 #include <nav_msgs/Path.h>
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
 #include <std_srvs/Empty.h>
 #include <tf/tf.h>
 #include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <atomic>
 #include <boost/thread.hpp>
@@ -83,12 +86,13 @@ class AsMPC {
   // params  
   std::string end_effector_frame_;
   std::string base_frame_;
+  std::string odom_frame_;
   double mpcUpdateFrequency_;
   double rosPublishFrequency_;
   double controlLoopFrequency_;
   double maxLinearVelocity_;
   double maxAngularVelocity_;
-  double base_mass;
+  double base_mass;  
   Eigen::Vector3d defaultForce_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d defaultTorque_ = Eigen::Vector3d::Zero();
 
@@ -101,6 +105,9 @@ class AsMPC {
 
   boost::shared_mutex observationMutex_;
   Observation observation_;
+
+  MpcInterface::input_vector_t controlInput_;
+  boost::shared_mutex controlInputMutex_;
   
 
   KinematicInterfaceConfig kinematicInterfaceConfig_;
@@ -111,10 +118,15 @@ class AsMPC {
   // ros
   ros::NodeHandle nh_;
   ros::Subscriber goalPoseSubscriber_;
-  ros::Subscriber jointStatesSubscriber;  
+  ros::Subscriber jointStatesSubscriber_; 
+  ros::Publisher armJointVelPub_;
+  ros::Publisher baseTwistPub_;   
   tf::TransformBroadcaster tfBroadcaster_;
   tf2_ros::Buffer tfBuffer_;
-  tf2_ros::TransformListener tfListener_;
+  tf2_ros::TransformListener* tfListener_;
+  
+  geometry_msgs::Twist baseTwistMsg_;
+  std_msgs::Float32MultiArray armJointVelMsg_;
 
  protected:
   // thread 1 simulates the control loop: query new mpc plan, writes observation
@@ -133,14 +145,18 @@ class AsMPC {
 
   // update the desired end effector pose on ros msg
   void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
-
+  void desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory);
   // update joint_state
-  void jointStatesCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
+  void jointStatesCb(const sensor_msgs::JointStateConstPtr& msgPtr);
+
+  void pubControlInput();
 
   // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
   void setCurrentObservation(const Observation& observation);
 
   void loadTransforms();
+
+  
   void initializeCostDesiredTrajectory();
 };
 }  // namespace perceptive_mpc
