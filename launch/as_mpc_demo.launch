@@ -17,7 +17,7 @@
       <rosparam file="$(find perceptive_mpc)/config/kinematic_simulation_parameters.yaml"/>
 
       <remap from="armjointvelcmd_topic" to="/as_control/xarm_joint_velocity_controller/command"/>
-      <remap from="basetwistcmd_topic" to="/as_control/as_base_holonomic_controller/cmd_vel"/>
+      <remap from="basetwistcmd_topic" to="/as_control/as_base_holonomic_controller/cmd_vel1"/>
       <remap from="joint_states" to="/as_control/joint_states"/>
     </node>
 

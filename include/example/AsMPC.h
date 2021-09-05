@@ -43,7 +43,7 @@
 // ros
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
-#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <nav_msgs/Path.h>
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
@@ -99,6 +99,7 @@ class AsMPC {
   // flags
   std::atomic_bool planAvailable_;
   std::atomic_bool mpcUpdateFailed_;
+  std::atomic_bool firstObservationUpdated_;
 
   double initialTime_;
   MpcInterface::state_vector_t optimalState_;
@@ -126,7 +127,7 @@ class AsMPC {
   tf2_ros::TransformListener* tfListener_;
   
   geometry_msgs::Twist baseTwistMsg_;
-  std_msgs::Float32MultiArray armJointVelMsg_;
+  std_msgs::Float64MultiArray armJointVelMsg_;
 
  protected:
   // thread 1 simulates the control loop: query new mpc plan, writes observation
@@ -149,7 +150,7 @@ class AsMPC {
   // update joint_state
   void jointStatesCb(const sensor_msgs::JointStateConstPtr& msgPtr);
 
-  void pubControlInput();
+  void pubControlInput(const MpcInterface::input_vector_t &controlInput);
 
   // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
   void setCurrentObservation(const Observation& observation);
