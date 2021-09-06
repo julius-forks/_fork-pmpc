@@ -32,8 +32,10 @@ using namespace perceptive_mpc;
 
 void SystemDynamics::systemFlowMap(ad_scalar_t time, const ad_dynamic_vector_t& state, const ad_dynamic_vector_t& input,
                                    ad_dynamic_vector_t& stateDerivative) const {
-  ad_scalar_t linearVelocity = input.head<Definitions::BASE_INPUT_DIM_>()[0];
-  ad_scalar_t omega = input.head<Definitions::BASE_INPUT_DIM_>()[1];
+  ad_scalar_t xVelocity = input.head<Definitions::BASE_INPUT_DIM_>()[0];
+  // ad_scalar_t linearVelocity = input.head<Definitions::BASE_INPUT_DIM_>()[0];
+  ad_scalar_t yVelocity = input.head<Definitions::BASE_INPUT_DIM_>()[1];
+  ad_scalar_t omega = input.head<Definitions::BASE_INPUT_DIM_>()[2];
 
   Eigen::Quaternion<ad_scalar_t> currentRotation(state.head<Definitions::BASE_STATE_DIM_>().head<4>());
 
@@ -46,7 +48,8 @@ void SystemDynamics::systemFlowMap(ad_scalar_t time, const ad_dynamic_vector_t& 
   stateDerivative.head<Definitions ::BASE_STATE_DIM_>().head<4>() = (currentRotation * deltaRotation).coeffs();
 
   Eigen::Matrix<ad_scalar_t, 3, 1> linearVelocityVector = Eigen::Matrix<ad_scalar_t, 3, 1>::Zero();
-  linearVelocityVector[0] = linearVelocity;
+  linearVelocityVector[0] = xVelocity;
+  linearVelocityVector[1] = yVelocity;
   stateDerivative.head<Definitions ::BASE_STATE_DIM_>().tail<3>() = currentRotation * linearVelocityVector;
   stateDerivative.head<Definitions ::BASE_STATE_DIM_>().tail<3>()[2] = 0;
 

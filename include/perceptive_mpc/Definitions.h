@@ -37,7 +37,7 @@ enum Definitions : size_t {
   BASE_STATE_DIM_ = 7,
   ARM_STATE_DIM_ = 6,
   STATE_DIM_ = BASE_STATE_DIM_ + ARM_STATE_DIM_,  // [I_x_b I_y_b \theta_b \phi^T]^T
-  BASE_INPUT_DIM_ = 2,
+  BASE_INPUT_DIM_ = 3,
   ARM_INPUT_DIM_ = 6,
   INPUT_DIM_ = BASE_INPUT_DIM_ + ARM_INPUT_DIM_,  // \dot{ [B_x_b \theta_b \phi^T]^T }
   POSE_DIM = 7,

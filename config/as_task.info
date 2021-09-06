@@ -152,14 +152,15 @@ ee_tracking_task
   {
     scaling 1e+0
 
-    (0,0) 5.0  ; base_drive
-    (1,1) 5.0  ; base_turn
-    (2,2) 1.0  ; arm_1
-    (3,3) 1.0  ; arm_2
-    (4,4) 1.0  ; arm_3
-    (5,5) 1.0  ; arm_4
-    (6,6) 1.0  ; arm_5
-    (7,7) 1.0  ; arm_6
+    (0,0) 5.0  ; base_drive x
+    (1,1) 5.0  ; base_drive y
+    (2,2) 10.0  ; base_turn
+    (3,3) 1.0  ; arm_1
+    (4,4) 1.0  ; arm_2
+    (5,5) 1.0  ; arm_3
+    (6,6) 1.0  ; arm_4
+    (7,7) 1.0  ; arm_5
+    (8,8) 1.0  ; arm_6
   }
 
   ; final state weight matrix
@@ -238,13 +239,14 @@ limits
   }
   velocity
   {
-    (0,0)  0.5     ; base_linear [m/s]
-    (1,0)  1.5     ; base_rot [rad/s]
-    (2,0)  1     ; arm_1 [rad/s]
-    (3,0)  1     ; arm_2 [rad/s]
-    (4,0)  1     ; arm_3 [rad/s]
-    (5,0)  1     ; arm_4 [rad/s]
-    (6,0)  1     ; arm_5 [rad/s]
-    (7,0)  1     ; arm_6 [rad/s]
+    (0,0)  0.5     ; base_linear  x[m/s]
+    (1,0)  0.5     ; base_linear y [m/s]
+    (2,0)  1.5     ; base_rot [rad/s]
+    (3,0)  1     ; arm_1 [rad/s]
+    (4,0)  1     ; arm_2 [rad/s]
+    (5,0)  1     ; arm_3 [rad/s]
+    (6,0)  1     ; arm_4 [rad/s]
+    (7,0)  1     ; arm_5 [rad/s]
+    (8,0)  1     ; arm_6 [rad/s]
   }
 }

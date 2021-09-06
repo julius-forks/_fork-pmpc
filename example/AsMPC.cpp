@@ -493,10 +493,11 @@ void AsMPC::pubControlInput(const MpcInterface::input_vector_t &controlInput)
   //   controlInput = controlInput_;
   // }
   baseTwistMsg_.linear.x = controlInput[0];
-  baseTwistMsg_.angular.z = controlInput[1];
+  baseTwistMsg_.linear.y = controlInput[1];
+  baseTwistMsg_.angular.z = controlInput[2];
 
   armJointVelMsg_.data.clear();
-  for (int i = 2; i < 8; i++)
+  for (int i = 3; i < 9; i++)
   {
     armJointVelMsg_.data.push_back(controlInput[i]);
   }
