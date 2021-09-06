@@ -47,7 +47,7 @@ namespace perceptive_mpc {
 struct QuadraticEndeffectorTrackingCostConfig {
   Eigen::Matrix<double, 6, 6> eePoseQ = Eigen::Matrix<double, 6, 6>::Identity();
   Eigen::Matrix<double, 6, 6> eePoseQFinal = Eigen::Matrix<double, 6, 6>::Zero();
-  Eigen::Matrix<double, 8, 8> R = Eigen::Matrix<double, 8, 8>::Identity();
+  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
   Eigen::Matrix4d wrist2ToEETransform = Eigen::Matrix4d::Identity();
   Eigen::Matrix4d baseToArmMount = Eigen::Matrix4d::Identity();
   std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics;
