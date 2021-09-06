@@ -3,24 +3,22 @@
    <!-- run rviz-->
     <arg name="rviz"                default="true" />
     <!--     Name of the task file which defines the mpc problem settings-->
-    <arg name="mpc_task_file"       default="mabi_task.info"/>
+    <arg name="mpc_task_file"       default="as_task.info"/>
     <!-- Set path of robot description -->
-    <arg name="description_file"    default="$(find perceptive_mpc)/urdf/mabi/mabi_mobile.urdf"/>
+    <arg name="description_file"    default="$(find perceptive_mpc)/urdf/armstone/as.urdf"/>
     <!-- Set rviz configuration -->
     <arg name="rvizconfig"          default="$(find perceptive_mpc)/config/demo.rviz"/>
-
-    <!-- Load robot description -->
-    <param name="robot_description" textfile="$(arg description_file)"/>
-
-    <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher">
-        <param name="publish_frequency" value="100"/>
-    </node>
-
+  
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(arg rvizconfig)" output="screen" if="$(arg rviz)"/>
 
-    <node pkg="perceptive_mpc" name="kinematic_simulation" type="perceptive_mpc_kinematic_simulation" output="screen"> <!--launch-prefix="gdb -ex run \-\-args" -->
+    <node pkg="perceptive_mpc" name="kinematic_simulation" type="as_mpc_node" output="screen"> <!--launch-prefix="gdb -ex run \-\-args" -->
       <param name="mpc_task_file"           value="$(arg mpc_task_file)"/>
+      <param name="end_effector_frame"           value="extruder_ee"/>
       <rosparam file="$(find perceptive_mpc)/config/kinematic_simulation_parameters.yaml"/>
+
+      <remap from="armjointvelcmd_topic" to="/as_control/xarm_joint_velocity_controller/command"/>
+      <remap from="basetwistcmd_topic" to="/as_control/mpc_base_cmd_vel"/>
+      <remap from="joint_states" to="/as_control/joint_states"/>
     </node>
 
     <node name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen"/>

@@ -30,7 +30,7 @@
 
 #include <example/KinematicSimulation.h>
 
-#include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
+#include <perceptive_mpc/kinematics/mabi/MabiKinematics.hpp>
 
 #include <tf2_eigen/tf2_eigen.h>
 #include <tf2_ros/transform_listener.h>
@@ -50,9 +50,12 @@ bool KinematicSimulation::run() {
   parseParameters();
   loadTransforms();
 
+  kinematicInterfaceConfig_.baseMass = 70;
+  kinematicInterfaceConfig_.baseCOM = Eigen::Vector3d::Zero();
+
   PerceptiveMpcInterfaceConfig config;
   config.taskFileName = mpcTaskFile_;
-  config.kinematicsInterface = std::make_shared<asArmKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
+  config.kinematicsInterface = std::make_shared<MabiKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
   config.voxbloxConfig = configureCollisionAvoidance(config.kinematicsInterface);
   ocs2Interface_.reset(new PerceptiveMpcInterface(config));
   mpcInterface_ = std::make_shared<MpcInterface>(ocs2Interface_->getMpc());
@@ -65,6 +68,9 @@ bool KinematicSimulation::run() {
   setCurrentObservation(observation_);
   ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
   ROS_INFO_STREAM("Initial time (delta): " << observation_.time() - initialTime_);
+
+  // TODO: uncomment for admittance control on hardware:
+  // admittanceReferenceModule.initialize();
 
   initializeCostDesiredTrajectory();
 
@@ -105,13 +111,13 @@ bool KinematicSimulation::run() {
 }
 
 void KinematicSimulation::loadTransforms() {
-  asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
+  MabiKinematics<double> kinematics(kinematicInterfaceConfig_);
   tf2_ros::Buffer tfBuffer;
   tf2_ros::TransformListener tfListener(tfBuffer);
   {
     geometry_msgs::TransformStamped transformStamped;
     try {
-      transformStamped = tfBuffer.lookupTransform(base_frame_, kinematics.armMountLinkName(), ros::Time(0), ros::Duration(1.0));
+      transformStamped = tfBuffer.lookupTransform("base_link", kinematics.armMountLinkName(), ros::Time(0), ros::Duration(1.0));
     } catch (tf2::TransformException& ex) {
       ROS_ERROR("%s", ex.what());
       throw;
@@ -131,7 +137,7 @@ void KinematicSimulation::loadTransforms() {
   {
     geometry_msgs::TransformStamped transformStamped;
     try {
-      transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), end_effector_frame_, ros::Time(0), ros::Duration(1.0));
+      transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), "ENDEFFECTOR", ros::Time(0), ros::Duration(1.0));
     } catch (tf2::TransformException& ex) {
       ROS_ERROR("%s", ex.what());
       throw;
@@ -152,20 +158,13 @@ void KinematicSimulation::loadTransforms() {
 void KinematicSimulation::parseParameters() {
   ros::NodeHandle pNh("~");
 
-  kinematicInterfaceConfig_.baseMass = pNh.param<double>("base_mass", 35);
-  
-  auto _v =pNh.param<std::vector<double>>("base_com", {0,0,0});
-  kinematicInterfaceConfig_.baseCOM =  Eigen::Vector3d(_v[0],_v[1],_v[2]);
-  end_effector_frame_ = pNh.param<std::string>("end_effector_frame", "ee");
-  base_frame_ = pNh.param<std::string>("base_frame", "base_link");
-
   mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
-  // Seems these are in EE frame
+
   mpcUpdateFrequency_ = pNh.param<double>("mpc_update_frequency", 100);
   tfUpdateFrequency_ = pNh.param<double>("tf_update_frequency", 10);
   maxLinearVelocity_ = pNh.param<double>("max_linear_velocity", 1.0);
   maxAngularVelocity_ = pNh.param<double>("max_angular_velocity", 1.0);
-  controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 100);
+  controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 200);
   auto defaultForceStd = pNh.param<std::vector<double>>("default_external_force", std::vector<double>());
   if (defaultForceStd.size() == 3) {
     defaultForce_ = Eigen::Vector3d::Map(defaultForceStd.data(), 3);
@@ -254,6 +253,7 @@ bool KinematicSimulation::mpcUpdate(ros::Rate rate) {
         //        measuredWrench); mpcInterface_->setTargetTrajectories(adaptedCostDesiredTrajectory);
         boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
         mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);
+        costDesiredTrajectories_.display();
       }
       {
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
@@ -433,7 +433,7 @@ void KinematicSimulation::publishBaseTransform(const Observation& observation) {
 void KinematicSimulation::publishArmState(const Observation& observation) {
   sensor_msgs::JointState armState;
   armState.header.stamp = ros::Time::now();
-  armState.name = {"xarmjoint1", "xarmjoint2", "xarmjoint3", "xarmjoint4", "xarmjoint5", "xarmjoint6"};
+  armState.name = {"SH_ROT", "SH_FLE", "EL_FLE", "EL_ROT", "WR_FLE", "WR_ROT"};
   armState.position.resize(Definitions::ARM_STATE_DIM_);
   Eigen::VectorXd armConfiguration = observation.state().tail<6>();
   for (size_t joint_idx = 0; joint_idx < Definitions::ARM_STATE_DIM_; joint_idx++) {
@@ -464,7 +464,7 @@ void KinematicSimulation::publishEndEffectorPose() {
 }
 
 void KinematicSimulation::publishZmp(const Observation& observation, const ocs2::CostDesiredTrajectories& costDesiredTrajectories) {
-  asArmKinematics<double> kinematicsInterface(kinematicInterfaceConfig_);
+  MabiKinematics<double> kinematicsInterface(kinematicInterfaceConfig_);
   Eigen::Vector3d com = kinematicsInterface.getCOMBaseFrame(observation.state());
   geometry_msgs::PointStamped comMsg;
   comMsg.header.frame_id = "base_link";
@@ -489,7 +489,7 @@ kindr::HomTransformQuatD KinematicSimulation::getEndEffectorPose() {
     Eigen::Matrix<double, 4, 4> endEffectorToWorldTransform;
     Eigen::VectorXd currentState = observation_.state();
 
-    asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
+    MabiKinematics<double> kinematics(kinematicInterfaceConfig_);
     kinematics.computeState2EndeffectorTransform(endEffectorToWorldTransform, currentState);
     Eigen::Quaterniond eigenBaseRotation(endEffectorToWorldTransform.topLeftCorner<3, 3>());
     return kindr::HomTransformQuatD(kindr::Position3D(endEffectorToWorldTransform.topRightCorner<3, 1>()),

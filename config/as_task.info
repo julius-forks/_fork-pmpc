@@ -124,7 +124,7 @@ initialState
   (4,0)  0.0      ; x
   (5,0)  0.0      ; y
   (6,0)  0.0      ; z
-  (7,0)  0.0      ; arm_1
+  (7,0)  1.0      ; arm_1
   (8,0)  -1     ; arm_2
   (9,0)  -1      ; arm_3
   (10,0)  0.0     ; arm_4
@@ -152,8 +152,8 @@ ee_tracking_task
   {
     scaling 1e+0
 
-    (0,0) 10.0  ; base_drive
-    (1,1) 50.0  ; base_turn
+    (0,0) 5.0  ; base_drive
+    (1,1) 5.0  ; base_turn
     (2,2) 1.0  ; arm_1
     (3,3) 1.0  ; arm_2
     (4,4) 1.0  ; arm_3
@@ -165,7 +165,7 @@ ee_tracking_task
   ; final state weight matrix
   Q_final
   {
-    scaling 1e+0
+    scaling 0e+1
 
     (0,0) 10.0  ; x
     (1,1) 10.0  ; y
