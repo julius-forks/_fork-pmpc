@@ -30,7 +30,7 @@
 #pragma once
 
 // perceptive_mpc
-#include <example/PerceptiveMpcInterface.h>
+#include <example/AsPerceptiveMpcInterface.h>
 #include <perceptive_mpc/ExplicitTemplateInstantiations.h>
 #include <perceptive_mpc/costs/PointsOnRobot.h>
 
@@ -76,7 +76,7 @@ class AsMPC {
 
  protected:
   std::string mpcTaskFile_;
-  std::unique_ptr<perceptive_mpc::PerceptiveMpcInterface> pmpcInterface_;
+  std::unique_ptr<perceptive_mpc::AsPerceptiveMpcInterface> pmpcInterface_;
   std::shared_ptr<MpcInterface> mpcInterface_;
   std::shared_ptr<PointsOnRobot> pointsOnRobot_;
   std::shared_ptr<voxblox::EsdfCachingServer> esdfCachingServer_;
@@ -114,7 +114,7 @@ class AsMPC {
   KinematicInterfaceConfig kinematicInterfaceConfig_;
 
   boost::shared_mutex costDesiredTrajectoryMutex_;
-  ocs2::CostDesiredTrajectories costDesiredTrajectories_;
+  ocs2::CostDesiredTrajectories costDesiredTrajectories_; // quaternion of ee, xyz ee, forces? or something
 
   // ros
   ros::NodeHandle nh_;

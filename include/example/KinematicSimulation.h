@@ -73,22 +73,19 @@ class KinematicSimulation {
 
  protected:
   std::string mpcTaskFile_;
-  std::unique_ptr<perceptive_mpc::PerceptiveMpcInterface> pmpcInterface_;
+  std::unique_ptr<perceptive_mpc::PerceptiveMpcInterface> ocs2Interface_;
   std::shared_ptr<MpcInterface> mpcInterface_;
   std::shared_ptr<PointsOnRobot> pointsOnRobot_;
   std::shared_ptr<voxblox::EsdfCachingServer> esdfCachingServer_;
   // TODO: uncomment for admittance control on hardware:
   // AdmittanceReferenceModule admittanceReferenceModule;
 
-  // params  
-  std::string end_effector_frame_;
-  std::string base_frame_;
+  // params
   double mpcUpdateFrequency_;
   double tfUpdateFrequency_;
   double controlLoopFrequency_;
   double maxLinearVelocity_;
   double maxAngularVelocity_;
-  double base_mass;
   Eigen::Vector3d defaultForce_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d defaultTorque_ = Eigen::Vector3d::Zero();
 

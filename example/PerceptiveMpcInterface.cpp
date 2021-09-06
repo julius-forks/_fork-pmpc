@@ -33,7 +33,7 @@
 #include <perceptive_mpc/costs/StabilitySoftConstraint.h>
 #include <perceptive_mpc/costs/VoxbloxCost.h>
 
-#include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
+#include <perceptive_mpc/kinematics/mabi/MabiKinematics.hpp>
 
 #include <cmath>
 

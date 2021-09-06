@@ -105,6 +105,7 @@ target_link_libraries(${PROJECT_NAME}
 
 add_library(${PROJECT_NAME}_example
         example/PerceptiveMpcInterface.cpp
+        example/AsPerceptiveMpcInterface.cpp
         )
 
 add_dependencies(${PROJECT_NAME}_example

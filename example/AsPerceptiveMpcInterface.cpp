@@ -27,7 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "example/PerceptiveMpcInterface.h"
+#include "example/AsPerceptiveMpcInterface.h"
 #include <perceptive_mpc/costs/BaseAvoidanceCost.h>
 #include <perceptive_mpc/costs/QuadraticEndeffectorTrackingCost.h>
 #include <perceptive_mpc/costs/StabilitySoftConstraint.h>
@@ -42,7 +42,7 @@ namespace perceptive_mpc {
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-PerceptiveMpcInterface::PerceptiveMpcInterface(const PerceptiveMpcInterfaceConfig& config)
+AsPerceptiveMpcInterface::AsPerceptiveMpcInterface(const AsPerceptiveMpcInterfaceConfig& config)
     : voxbloxConfig_(config.voxbloxConfig), kinematicsInterface_(config.kinematicsInterface) {
   std::string packagePath = ros::package::getPath("perceptive_mpc");
 
@@ -66,7 +66,7 @@ PerceptiveMpcInterface::PerceptiveMpcInterface(const PerceptiveMpcInterfaceConfi
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-void PerceptiveMpcInterface::loadSettings(const std::string& taskFile) {
+void AsPerceptiveMpcInterface::loadSettings(const std::string& taskFile) {
   /*
    * Default initial condition
    */
@@ -216,7 +216,7 @@ void PerceptiveMpcInterface::loadSettings(const std::string& taskFile) {
   dim_t::scalar_t timeHorizon;
   ocs2::loadData::loadPartitioningTimes(taskFile, timeHorizon, numPartitions_, partitioningTimes_, true);
 }
-void PerceptiveMpcInterface::setupConstraints(const Eigen::VectorXd& lowerLimits, const Eigen::VectorXd& upperLimits,
+void AsPerceptiveMpcInterface::setupConstraints(const Eigen::VectorXd& lowerLimits, const Eigen::VectorXd& upperLimits,
                                               const Eigen::VectorXd& velocityLimits, double positionMpcMarginRad) {
   std::unique_ptr<linear_constraint_t> linearConstraintPtr(new linear_constraint_t());
 
@@ -259,7 +259,7 @@ void PerceptiveMpcInterface::setupConstraints(const Eigen::VectorXd& lowerLimits
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-void PerceptiveMpcInterface::resetMpc() {
+void AsPerceptiveMpcInterface::resetMpc() {
   mpcPtr_.reset(new mpc_t(timeTriggeredRolloutPtr_.get(), systemDynamicsPtr_.get(), constraintPtr_.get(), costPtr_.get(),
                           operatingPointPtr_.get(), partitioningTimes_, slqSettings_, mpcSettings_));
 }
@@ -267,7 +267,7 @@ void PerceptiveMpcInterface::resetMpc() {
 /******************************************************************************************************/
 /******************************************************************************************************/
 /******************************************************************************************************/
-PerceptiveMpcInterface::mpc_t& PerceptiveMpcInterface::getMpc() {
+AsPerceptiveMpcInterface::mpc_t& AsPerceptiveMpcInterface::getMpc() {
   return *mpcPtr_;
 }
 

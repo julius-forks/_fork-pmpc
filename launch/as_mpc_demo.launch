@@ -3,7 +3,7 @@
    <!-- run rviz-->
     <arg name="rviz"                default="true" />
     <!--     Name of the task file which defines the mpc problem settings-->
-    <arg name="mpc_task_file"       default="task.info"/>
+    <arg name="mpc_task_file"       default="as_task.info"/>
     <!-- Set path of robot description -->
     <arg name="description_file"    default="$(find perceptive_mpc)/urdf/armstone/as.urdf"/>
     <!-- Set rviz configuration -->
@@ -17,7 +17,7 @@
       <rosparam file="$(find perceptive_mpc)/config/kinematic_simulation_parameters.yaml"/>
 
       <remap from="armjointvelcmd_topic" to="/as_control/xarm_joint_velocity_controller/command"/>
-      <remap from="basetwistcmd_topic" to="/as_control/as_base_holonomic_controller/cmd_vel1"/>
+      <remap from="basetwistcmd_topic" to="/as_control/mpc_base_cmd_vel"/>
       <remap from="joint_states" to="/as_control/joint_states"/>
     </node>
 
