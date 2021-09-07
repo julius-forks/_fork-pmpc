@@ -5,7 +5,7 @@
     <!--     Name of the task file which defines the mpc problem settings-->
     <arg name="mpc_task_file"       default="as_task.info"/>
     <!-- Set path of robot description -->
-    <arg name="description_file"    default="$(find perceptive_mpc)/urdf/armstone/as.urdf"/>
+    <!-- <arg name="description_file"    default="$(find perceptive_mpc)/urdf/armstone/as.urdf"/> -->
     <!-- Set rviz configuration -->
     <arg name="rvizconfig"          default="$(find perceptive_mpc)/config/demo.rviz"/>
   
