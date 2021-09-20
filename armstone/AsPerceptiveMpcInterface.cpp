@@ -27,13 +27,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "example/AsPerceptiveMpcInterface.h"
+#include "armstone/AsPerceptiveMpcInterface.h"
 #include <perceptive_mpc/costs/BaseAvoidanceCost.h>
 #include <perceptive_mpc/costs/QuadraticEndeffectorTrackingCost.h>
 #include <perceptive_mpc/costs/StabilitySoftConstraint.h>
 #include <perceptive_mpc/costs/VoxbloxCost.h>
 
-#include <perceptive_mpc/kinematics/mabi/MabiKinematics.hpp>
+#include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
 
 #include <cmath>
 

@@ -29,13 +29,13 @@
 
 
 #include <ros/ros.h>
-#include "example/AsMPC.h"
+#include "armstone/AsMPCController.h"
 
 using namespace perceptive_mpc;
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "kinematic_simulation");
-  AsMPC asmpc;
+  ros::init(argc, argv, "as_mpc_controller");
+  AsMPCController asmpc;
   asmpc.run();
   return 0;
 }
