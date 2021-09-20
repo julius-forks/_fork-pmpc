@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
    <!-- run rviz-->
-    <arg name="rviz"                default="true" />
+    <arg name="rviz"                default="false" />
     <!--     Name of the task file which defines the mpc problem settings-->
     <arg name="mpc_task_file"       default="as_task.info"/>
     <!-- Set path of robot description -->
@@ -9,7 +9,7 @@
     <!-- Set rviz configuration -->
     <arg name="rvizconfig"          default="$(find perceptive_mpc)/config/demo.rviz"/>
   
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(arg rvizconfig)" output="screen" if="$(arg rviz)"/>
+    <!-- <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find as_description)/rviz/as.rviz" /> -->
 
     <node pkg="perceptive_mpc" name="kinematic_simulation" type="as_mpc_controller_node" output="screen"> <!--launch-prefix="gdb -ex run \-\-args" -->
       <param name="mpc_task_file"           value="$(arg mpc_task_file)"/>
@@ -22,4 +22,5 @@
     </node>
 
     <node name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen"/>
+    
 </launch>

@@ -71,9 +71,8 @@ bool AsMPCController::run()
   }
   ROS_INFO("Observation was updated; initialising PMPC");
 
-  goalPoseSubscriber_ =
-      nh_.subscribe("/perceptive_mpc/desired_end_effector_pose", 1, &AsMPCController::desiredEndEffectorPoseCb, this);
-
+  goalPoseSubscriber_ = nh_.subscribe("/perceptive_mpc/desired_end_effector_pose", 1, &AsMPCController::desiredEndEffectorPoseCb, this);
+  taskTrajectorySubscriber_ = nh_.subscribe("/print_tasker/trajectory_cmd", 1, &AsMPCController::taskTrajectoryCmdCb, this);
   armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
   baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
 
@@ -238,7 +237,8 @@ bool AsMPCController::trackerLoop(ros::Rate rate)
       try
       {
         mpcInterface_->updatePolicy();
-        mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
+        mpcInterface_->evaluatePolicy(ros::Time::now().toSec(), observation.state(), optimalState, controlInput, subsystem);
+        // mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
         pubControlInput(controlInput);
       }
       catch (const std::runtime_error &ex)
@@ -359,7 +359,7 @@ void AsMPCController::initializeCostDesiredTrajectory()
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   reference_vector_t reference = reference_vector_t::Zero();
-  auto currentEndEffectorPose = getEndEffectorPose();  
+  auto currentEndEffectorPose = getEndEffectorPose();
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
   reference.tail<Definitions::WRENCH_DIM>().head<3>() = defaultForce_;
@@ -447,6 +447,47 @@ void AsMPCController::desiredWrenchPoseTrajectoryCb(const perceptive_mpc::Wrench
   }
 }
 
+void AsMPCController::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+{
+  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+  costDesiredTrajectories_.clear();
+  int N = taskTrajectory.points.size(); // point count
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+
+  kindr::HomTransformQuatD lastPose; // setup temp
+  for (int i = 0; i < N; i++)
+  {
+    kindr::HomTransformQuatD desiredPose;
+    reference_vector_t reference;
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].pose, desiredPose); // to kindr pose
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+    Eigen::Vector3d force;
+    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
+    Eigen::Vector3d torque;
+    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
+    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
+
+    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+
+    // Deal with feasibility. This should be a check rather than retime.
+    if (i == 0)
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
+    }
+    else
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + taskTrajectory.points[i].time_from_start.toSec();
+
+    }
+
+    lastPose = desiredPose;    
+  }
+
+}
+
 void AsMPCController::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
 {
   geometry_msgs::TransformStamped ts;
@@ -478,7 +519,8 @@ void AsMPCController::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPt
     observation_.state(11) = msgPtr->position[8];
     observation_.state(12) = msgPtr->position[9];
     // observation_.time() = msgPtr->header.stamp.toSec() -initialTime_;
-    observation_.time() = msgPtr->header.stamp.toSec();
+    // observation_.time() = msgPtr->header.stamp.toSec();
+    observation_.time() = ros::Time::now().toSec();;
   }
 
   firstObservationUpdated_ = true;

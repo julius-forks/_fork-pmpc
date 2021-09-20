@@ -36,6 +36,7 @@
 
 #include <perceptive_mpc/Definitions.h>
 #include <perceptive_mpc/WrenchPoseTrajectory.h>
+#include <m3dp_msgs/TaskTrajectory.h>
 
 // ocs2
 #include <ocs2_core/automatic_differentiation/CppAdInterface.h>
@@ -114,6 +115,7 @@ class AsKinematicSimulation {
   ros::Subscriber desiredEndEffectorPoseSubscriber_;
   ros::Subscriber desiredEndEffectorWrenchPoseTrajectorySubscriber_;
   tf::TransformBroadcaster tfBroadcaster_;
+  ros::Subscriber taskTrajectorySubscriber_;
 
  protected:
   // thread 1 simulates the control loop: query new mpc plan, writes observation
@@ -146,6 +148,7 @@ class AsKinematicSimulation {
 
   // update the desired end effector pose on ros msg
   void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
+  void taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory& taskTrajectory);
 
   void desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory);
 

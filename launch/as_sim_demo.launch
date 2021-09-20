@@ -22,7 +22,7 @@
       <rosparam param="source_list">[/as_control/joint_states]</rosparam>
     </node>
     
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(arg rvizconfig)" output="screen" if="$(arg rviz)"/>
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find as_description)/rviz/as.rviz" />
 
     <node pkg="perceptive_mpc" name="kinematic_simulation" type="as_mpc_simulation_node" output="screen"> 
       <param name="mpc_task_file" value="$(arg mpc_task_file)"/>
@@ -31,4 +31,5 @@
     </node>
 
     <node name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen"/>
+    <node name="print_tasker" pkg="print_tasker" type="print_tasker.py" output="screen"/>
 </launch>

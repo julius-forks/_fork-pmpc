@@ -139,12 +139,12 @@ ee_tracking_task
   {
     scaling 1e+1
 
-    (0,0) 1.0  ; x
-    (1,1) 1.0  ; y
-    (2,2) 1.0  ; z
+    (0,0) 10.0  ; x
+    (1,1) 10.0  ; y
+    (2,2) 100.0  ; z
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
-    (5,5) 1.0  ; yaw
+    (5,5) 0.0  ; yaw
   }
 
   ; control weight matrix
@@ -155,10 +155,10 @@ ee_tracking_task
     (0,0) 5.0  ; base_drive x
     (1,1) 5.0  ; base_drive y
     (2,2) 10.0  ; base_turn
-    (3,3) 1.0  ; arm_1
-    (4,4) 1.0  ; arm_2
-    (5,5) 1.0  ; arm_3
-    (6,6) 1.0  ; arm_4
+    (3,3) 5.0  ; arm_1
+    (4,4) 4.0  ; arm_2
+    (5,5) 3.0  ; arm_3
+    (6,6) 2.0  ; arm_4
     (7,7) 1.0  ; arm_5
     (8,8) 1.0  ; arm_6
   }

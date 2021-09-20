@@ -89,6 +89,7 @@ bool AsKinematicSimulation::run() {
   desiredEndEffectorWrenchPoseTrajectorySubscriber_ = nh_.subscribe("/perceptive_mpc/desired_end_effector_wrench_pose_trajectory", 1,
                                                                     &AsKinematicSimulation::desiredWrenchPoseTrajectoryCb, this);
   endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("measured_end_effector_pose", 100);
+  taskTrajectorySubscriber_ = nh_.subscribe("/print_tasker/trajectory_cmd", 1, &AsKinematicSimulation::taskTrajectoryCmdCb, this);
 
   pointsOnRobotPublisher_ = nh_.advertise<visualization_msgs::MarkerArray>("/perceptive_mpc/collision_points", 1, false);
 
@@ -244,6 +245,51 @@ bool AsKinematicSimulation::trackerLoop(ros::Rate rate) {
   }
   return true;
 }
+
+
+void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+{
+  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+  costDesiredTrajectories_.clear();
+  int N = taskTrajectory.points.size(); // point count
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+
+  kindr::HomTransformQuatD lastPose; // setup temp
+  for (int i = 0; i < N; i++)
+  {
+    kindr::HomTransformQuatD desiredPose;
+    reference_vector_t reference;
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].pose, desiredPose); // to kindr pose
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+    Eigen::Vector3d force;
+    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
+    Eigen::Vector3d torque;
+    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
+    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
+
+    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+
+    // Deal with feasibility. This should be a check rather than retime.
+    if (i == 0)
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
+    }
+    else
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + taskTrajectory.points[i].time_from_start.toSec();
+
+    }
+
+    lastPose = desiredPose;    
+  }
+
+}
+
+
+
 
 bool AsKinematicSimulation::mpcUpdate(ros::Rate rate) {
   while (ros::ok()) {
