@@ -78,8 +78,7 @@ add_library(${PROJECT_NAME}
   src/costs/VoxbloxCost.cpp
   src/costs/PointsOnRobot.cpp
   src/costs/StabilitySoftConstraint.cpp
-  src/OperatingPoint.cpp
-  src/Conversions.cpp
+  src/OperatingPoint.cpp  
   src/kinematics/KinematicsInterface.cpp
   src/kinematics/asArm/asArmKinematics.cpp
   src/kinematics/mabi/MabiKinematics.cpp
