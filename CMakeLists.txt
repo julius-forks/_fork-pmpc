@@ -27,16 +27,14 @@ find_package(Boost REQUIRED COMPONENTS
   filesystem
   )
 
-add_message_files(
-  FILES
-  WrenchPoseStamped.msg
-  WrenchPoseTrajectory.msg
-)
+#add_message_files(
+#  FILES
+#)
 
-generate_messages(
-  DEPENDENCIES
-  geometry_msgs
-)
+#generate_messages(
+#  DEPENDENCIES
+#  geometry_msgs
+#)
 
 catkin_package(
   INCLUDE_DIRS
@@ -74,10 +72,10 @@ target_link_libraries(${PROJECT_NAME}_explicit_instantiations
 add_library(${PROJECT_NAME}
   src/SystemDynamics.cpp
   src/costs/QuadraticEndeffectorTrackingCost.cpp
+  src/costs/QuadraticBaseEETrackingCost.cpp
   src/costs/BaseAvoidanceCost.cpp
   src/costs/VoxbloxCost.cpp
-  src/costs/PointsOnRobot.cpp
-  src/costs/StabilitySoftConstraint.cpp
+  src/costs/PointsOnRobot.cpp  
   src/OperatingPoint.cpp  
   src/kinematics/KinematicsInterface.cpp
   src/kinematics/asArm/asArmKinematics.cpp

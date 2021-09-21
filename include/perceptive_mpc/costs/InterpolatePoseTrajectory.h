@@ -74,42 +74,5 @@ inline ocs2::dynamic_vector_t interpolatePoseTrajectory(const ocs2::scalar_array
   return reference;
 }
 
-inline ocs2::dynamic_vector_t interpolateWrenchTrajectory(const ocs2::scalar_array_t& timeTrajectory,
-                                                          const ocs2::dynamic_vector_array_t& stateTrajectory, ocs2::scalar_t time) {
-  ocs2::dynamic_vector_t reference((int)Definitions::WRENCH_DIM);
-
-  auto it = std::lower_bound(timeTrajectory.begin(), timeTrajectory.end(), time);
-  int timeAIdx = it - timeTrajectory.begin() - 1;
-  if (timeAIdx == -1) {
-    reference = stateTrajectory[0].tail((int)Definitions::WRENCH_DIM);
-    /*
-        std::cerr << "t:" << t << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" << desiredTimeTrajectory.back()
-                  << std::endl << ", timeAIdx:" << timeAIdx << ", N:" << desiredTimeTrajectory.size() << ", t_idx:" <<
-       desiredTimeTrajectory[timeAIdx] << std::endl << std::endl;
-    */
-  } else if (timeAIdx == timeTrajectory.size() - 1) {
-    reference = stateTrajectory[timeAIdx].tail((int)Definitions::WRENCH_DIM);
-    ;
-    /*
-        std::cerr << "t:" << t << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" << desiredTimeTrajectory.back()
-                  << std::endl << ", timeAIdx:" << timeAIdx << ", N:" << desiredTimeTrajectory.size() << ", t_idx:" <<
-       desiredTimeTrajectory[timeAIdx] << std::endl << std::endl;
-    */
-  } else {
-    double tau = (time - timeTrajectory[timeAIdx]) / (timeTrajectory[timeAIdx + 1] - timeTrajectory[timeAIdx]);
-
-    // interpolate cartesian space position linearly
-    reference = (1 - tau) * stateTrajectory[timeAIdx].tail((int)Definitions::WRENCH_DIM) +
-                tau * stateTrajectory[timeAIdx + 1].tail((int)Definitions::WRENCH_DIM);
-    /*    std::cerr << "t:" << t << ", tau:" << tau << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" <<
-       desiredTimeTrajectory.back()
-                  << std::endl << ", timeAIdx:" << timeAIdx << ", N:" << desiredTimeTrajectory.size() << ", t_idx:" <<
-       desiredTimeTrajectory[timeAIdx] << std::endl
-                  << "x_a: " << desiredStateTrajectory[timeAIdx].transpose() << std::endl
-                  << "x_t: " << xNominal.transpose() << std::endl
-                  << "x_b: " << desiredStateTrajectory[timeAIdx+1].transpose() << std::endl<< std::endl;*/
-  }
-  return reference;
-}
 
 }  // namespace perceptive_mpc

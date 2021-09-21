@@ -29,8 +29,7 @@
 
 #include "armstone/AsPerceptiveMpcInterface.h"
 #include <perceptive_mpc/costs/BaseAvoidanceCost.h>
-#include <perceptive_mpc/costs/QuadraticEndeffectorTrackingCost.h>
-#include <perceptive_mpc/costs/StabilitySoftConstraint.h>
+#include <perceptive_mpc/costs/QuadraticBaseEETrackingCost.h>
 #include <perceptive_mpc/costs/VoxbloxCost.h>
 
 #include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
@@ -98,20 +97,20 @@ void AsPerceptiveMpcInterface::loadSettings(const std::string& taskFile) {
 
   {
     // task space tracking cost
-    QuadraticEndeffectorTrackingCostConfig config;
-    ocs2::loadData::loadEigenMatrix(taskFile, "ee_tracking_task.Q", config.eePoseQ);
-    ocs2::loadData::loadEigenMatrix(taskFile, "ee_tracking_task.R", config.R);
-    ocs2::loadData::loadEigenMatrix(taskFile, "ee_tracking_task.Q_final", config.eePoseQFinal);
+    QuadraticBaseEETrackingCostConfig config;
+    ocs2::loadData::loadEigenMatrix(taskFile, "base_ee_tracking_task.Q", config.base_ee_Q);
+    ocs2::loadData::loadEigenMatrix(taskFile, "base_ee_tracking_task.R", config.R);
+    ocs2::loadData::loadEigenMatrix(taskFile, "base_ee_tracking_task.Q_final", config.base_ee_QFinal);
     config.kinematics = kinematicsInterface_;
 
-    std::cerr << "Q:       \n" << config.eePoseQ << std::endl;
+    std::cerr << "Q:       \n" << config.base_ee_Q << std::endl;
     std::cerr << "R:       \n" << config.R << std::endl;
-    std::cerr << "Q_final: \n" << config.eePoseQFinal << std::endl;
+    std::cerr << "Q_final: \n" << config.base_ee_QFinal << std::endl;
 
-    std::shared_ptr<QuadraticEndeffectorTrackingCost> eeCost(new QuadraticEndeffectorTrackingCost(config));
-    eeCost->initialize("ee_quadratic_cost", libraryFolder_, modelSettings_.recompileLibraries_);
+    std::shared_ptr<QuadraticBaseEETrackingCost> base_ee_Cost(new QuadraticBaseEETrackingCost(config));
+    base_ee_Cost->initialize("ee_quadratic_cost", libraryFolder_, modelSettings_.recompileLibraries_);
 
-    weightedCostFunctions.push_back(std::make_pair(1, eeCost));
+    weightedCostFunctions.push_back(std::make_pair(1, base_ee_Cost));    
   }
 
   bool useObstacleCost = false;
@@ -146,24 +145,7 @@ void AsPerceptiveMpcInterface::loadSettings(const std::string& taskFile) {
     weightedCostFunctions.push_back(std::make_pair(1, baseAvoidanceCost));
   }
 
-  bool useZMPConstraint = false;
-  ocs2::loadData::loadCppDataType(taskFile, "stability_soft_constraint.activate", useZMPConstraint);
-  std::cerr << "stability_soft_constraint.activate:       \n" << useZMPConstraint << std::endl;
-
-  if (useZMPConstraint) {
-    StabilitySoftConstraint::Settings settings;
-    settings.kinematics = kinematicsInterface_;
-    ocs2::loadData::loadCppDataType(taskFile, "stability_soft_constraint.support_circle_radius", settings.supportCircleRadius);
-    std::cerr << "stability_soft_constraint.support_circle_radius:       \n" << settings.supportCircleRadius << std::endl;
-    ocs2::loadData::loadCppDataType(taskFile, "stability_soft_constraint.mu", settings.relaxedBarrierConfig.mu);
-    std::cerr << "stability_soft_constraint.mu:       \n" << settings.relaxedBarrierConfig.mu << std::endl;
-    ocs2::loadData::loadCppDataType(taskFile, "stability_soft_constraint.delta", settings.relaxedBarrierConfig.delta);
-    std::cerr << "stability_soft_constraint.delta:       \n" << settings.relaxedBarrierConfig.delta << std::endl;
-    auto stabilityConstraint = std::make_shared<StabilitySoftConstraint>(settings);
-    stabilityConstraint->initialize("stability_constraint", libraryFolder_, modelSettings_.recompileLibraries_);
-    weightedCostFunctions.push_back(std::make_pair(1, stabilityConstraint));
-  }
-
+  
   if (voxbloxConfig_) {
     ocs2::loadData::loadCppDataType(taskFile, "voxblox_cost.mu", voxbloxConfig_->mu);
     std::cerr << "voxblox_cost.mu:       \n" << voxbloxConfig_->mu << std::endl;

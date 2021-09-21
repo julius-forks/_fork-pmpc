@@ -132,7 +132,7 @@ initialState
   (12,0)  0.0     ; arm_6
 }
 
-ee_tracking_task
+base_ee_tracking_task
 {
   ; state weight matrix
   Q
