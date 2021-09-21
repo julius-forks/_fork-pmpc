@@ -102,42 +102,21 @@ target_link_libraries(${PROJECT_NAME}
 
 ########################### 
 
-add_library(${PROJECT_NAME}_example
-        example/PerceptiveMpcInterface.cpp
+add_library(${PROJECT_NAME}_armstone        
         armstone/AsPerceptiveMpcInterface.cpp
         )
 
-add_dependencies(${PROJECT_NAME}_example
+add_dependencies(${PROJECT_NAME}_armstone
         ${${PROJECT_NAME}_EXPORTED_TARGETS}
         ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(${PROJECT_NAME}_example
+target_link_libraries(${PROJECT_NAME}_armstone
         ${PROJECT_NAME}
         ${PROJECT_NAME}_explicit_instantiations
         ${catkin_LIBRARIES}
         ${Boost_LIBRARIES}
         dl
         )
-
-###########################
-
-add_executable(${PROJECT_NAME}_kinematic_simulation
-        example/kinematic_simulation_node.cpp
-        example/KinematicSimulation.cpp)
-
-add_dependencies(${PROJECT_NAME}_kinematic_simulation
-        ${${PROJECT_NAME}_EXPORTED_TARGETS}
-        ${catkin_EXPORTED_TARGETS})
-
-target_link_libraries(${PROJECT_NAME}_kinematic_simulation
-        ${PROJECT_NAME}
-        ${PROJECT_NAME}_explicit_instantiations
-        ${PROJECT_NAME}_example
-        ${catkin_LIBRARIES}
-        ${Boost_LIBRARIES}
-        dl
-        )
-
 
 ###########################
 
@@ -152,7 +131,7 @@ add_dependencies(as_mpc_controller_node
 target_link_libraries(as_mpc_controller_node
         ${PROJECT_NAME}
         ${PROJECT_NAME}_explicit_instantiations
-        ${PROJECT_NAME}_example
+        ${PROJECT_NAME}_armstone
         ${catkin_LIBRARIES}
         ${Boost_LIBRARIES}
         dl
@@ -171,13 +150,11 @@ add_dependencies(as_mpc_simulation_node
 target_link_libraries(as_mpc_simulation_node
         ${PROJECT_NAME}
         ${PROJECT_NAME}_explicit_instantiations
-        ${PROJECT_NAME}_example
+        ${PROJECT_NAME}_armstone
         ${catkin_LIBRARIES}
         ${Boost_LIBRARIES}
         dl
         )
-
-
 
 #############
 ## Install ##
