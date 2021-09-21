@@ -152,13 +152,13 @@ ee_tracking_task
   {
     scaling 1e+0
 
-    (0,0) 5.0  ; base_drive x
-    (1,1) 5.0  ; base_drive y
-    (2,2) 10.0  ; base_turn
-    (3,3) 5.0  ; arm_1
-    (4,4) 4.0  ; arm_2
-    (5,5) 3.0  ; arm_3
-    (6,6) 2.0  ; arm_4
+    (0,0) 100.0  ; base_drive x
+    (1,1) 100.0  ; base_drive y
+    (2,2) 250.0  ; base_turn
+    (3,3) 1.0  ; arm_1
+    (4,4) 1.0  ; arm_2
+    (5,5) 1.0  ; arm_3
+    (6,6) 1.0  ; arm_4
     (7,7) 1.0  ; arm_5
     (8,8) 1.0  ; arm_6
   }
