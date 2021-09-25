@@ -137,7 +137,6 @@ class AsKinematicSimulation {
 
   // publish the current end effector pose to ros
   void publishEndEffectorPose();
-
   
 
     // parse all ros parameters

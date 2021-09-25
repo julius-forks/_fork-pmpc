@@ -427,7 +427,7 @@ void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory 
     }
     else
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + taskTrajectory.points[i].time_from_start.toSec();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
     }
 
     lastPose = desiredPose;
@@ -438,11 +438,11 @@ void AsKinematicSimulation::desiredEndEffectorPoseCb(const geometry_msgs::PoseSt
 {
   // USECASE put 0 base pose cost if you are using this
   geometry_msgs::Pose currentEndEffectorPose;
-  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);
+  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);  
   kindr::HomTransformQuatD desiredPose;
   kindr::HomTransformQuatD currentPose;
   kindr_ros::convertFromRosGeometryMsg(msgPtr->pose, desiredPose);
-  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);
+  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);  
 
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
@@ -460,17 +460,18 @@ void AsKinematicSimulation::desiredEndEffectorPoseCb(const geometry_msgs::PoseSt
   reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
 
   costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
-  costDesiredTrajectories_.desiredStateTrajectory()[0] = reference1;
+  costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
   costDesiredTrajectories_.desiredInputTrajectory()[0] = MpcInterface::input_vector_t::Zero();
-  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();
+  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();  
 
   auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
   auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
 
-  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;  
 
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
+  
 }
 
 void AsKinematicSimulation::publishBaseTransform(const Observation &observation)
