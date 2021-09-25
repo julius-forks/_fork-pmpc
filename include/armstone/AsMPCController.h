@@ -140,6 +140,7 @@ class AsMPCController {
 
   // compute the current end effector Pose on the base of the latest observation
   kindr::HomTransformQuatD getEndEffectorPose();
+  kindr::HomTransformQuatD getBasePose();
 
   // parse all ros parameters
   void parseParameters();

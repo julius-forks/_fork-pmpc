@@ -45,8 +45,8 @@
 namespace perceptive_mpc {
 
 struct QuadraticBaseEETrackingCostConfig {
-  Eigen::Matrix<double, 6, 6> base_ee_Q = Eigen::Matrix<double, 6, 6>::Identity();
-  Eigen::Matrix<double, 6, 6> base_ee_QFinal = Eigen::Matrix<double, 6, 6>::Zero();
+  Eigen::Matrix<double, 9, 9> base_ee_Q = Eigen::Matrix<double, 9, 9>::Identity();//base x,y ,yaw, ee xyz, rpy
+  Eigen::Matrix<double, 9, 9> base_ee_QFinal = Eigen::Matrix<double, 9, 9>::Zero();//base x,y ,yaw, ee xyz, rpy
   Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
   Eigen::Matrix4d wrist2ToEETransform = Eigen::Matrix4d::Identity();
   Eigen::Matrix4d baseToArmMount = Eigen::Matrix4d::Identity();
@@ -54,11 +54,11 @@ struct QuadraticBaseEETrackingCostConfig {
 };
 
 class QuadraticBaseEETrackingCost
-    : public ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 6 + Definitions::INPUT_DIM_, 6> {
+    : public ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 9 + Definitions::INPUT_DIM_, 9> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 6 + Definitions::INPUT_DIM_, 6> BASE;
+  typedef ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 9 + Definitions::INPUT_DIM_, 9> BASE;
   using typename BASE::ad_scalar_t;
   using typename BASE::dynamic_vector_t;
   using typename BASE::input_matrix_t;
@@ -66,7 +66,7 @@ class QuadraticBaseEETrackingCost
   using typename BASE::scalar_t;
   using typename BASE::state_matrix_t;
   using typename BASE::state_vector_t;
-  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 6, 6>;
+  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 9, 9>;
   using typename BASE::intermediate_cost_vector_t;
   using typename BASE::terminal_cost_vector_t;
 

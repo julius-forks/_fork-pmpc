@@ -128,6 +128,7 @@ class AsKinematicSimulation {
 
   // compute the current end effector Pose on the base of the latest observation
   kindr::HomTransformQuatD getEndEffectorPose();
+  kindr::HomTransformQuatD getBasePose();
 
   // publish the transform from odom to the robot base
   void publishBaseTransform(const Observation& observation);

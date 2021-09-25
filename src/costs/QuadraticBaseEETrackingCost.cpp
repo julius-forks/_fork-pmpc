@@ -27,7 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 #include <perceptive_mpc/costs/QuadraticBaseEETrackingCost.h>
-#include <perceptive_mpc/costs/InterpolatePoseTrajectory.h>
+#include <perceptive_mpc/costs/InterpolateBaseArmTrajectory.h>
 
 using namespace perceptive_mpc;
 
@@ -38,21 +38,48 @@ QuadraticBaseEETrackingCost* QuadraticBaseEETrackingCost::clone() const {
 void QuadraticBaseEETrackingCost::intermediateCostFunction(ad_scalar_t time, const ad_dynamic_vector_t& state,
                                                                 const ad_dynamic_vector_t& input, const ad_dynamic_vector_t& parameters,
                                                                 ad_intermediate_cost_vector_t& costValues) const {
-  const Eigen::Quaternion<ad_scalar_t> desiredOrientation(parameters.head<4>());
-  const Eigen::Matrix<ad_scalar_t, 3, 1>& desiredPosition = parameters.tail<3>();
+  // Get desireds
+  const Eigen::Quaternion<ad_scalar_t> desiredEEOrientation(parameters.head<7>().head<4>());
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& desiredEEPosition = parameters.head<7>().tail<3>();
 
+  const Eigen::Quaternion<ad_scalar_t> desiredBOrientation(parameters.head<14>().tail<7>().head<4>());
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& desiredBPosition = parameters.head<14>().tail<7>().tail<3>();
+
+  size_t N = parameters.size();
+  std::cerr << " intermediate params: [";
+  for (size_t i = 0; i < N; i++) {
+    std::cerr << parameters[i] << " ,";
+  }
+  std::cerr << std::endl;
+  N = state.size();
+  std::cerr << "state: [";
+  for (size_t i = 0; i < N; i++) {
+    std::cerr << state[i] << " ,";
+  }
+  std::cerr << std::endl;
+
+
+  // current EE Transform to (q,p)
   Eigen::Matrix<ad_scalar_t, 4, 4> currentEEPose;
-  kinematics_->computeState2EndeffectorTransform(currentEEPose, state);
+  kinematics_->computeState2EndeffectorTransform(currentEEPose, state); 
 
-  const Eigen::Matrix<ad_scalar_t, 3, 3>& currentOrientation = currentEEPose.topLeftCorner<3, 3>();
-  const Eigen::Matrix<ad_scalar_t, 3, 1>& currentPosition = currentEEPose.topRightCorner<3, 1>();
+  const Eigen::Matrix<ad_scalar_t, 3, 3>& currentEEOrientation = currentEEPose.topLeftCorner<3, 3>();
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& currentEEPosition = currentEEPose.topRightCorner<3, 1>();
+  Eigen::Quaternion<ad_scalar_t> currentEEOrientationQuat = matrixToQuaternion(currentEEOrientation);
 
-  Eigen::Matrix<ad_scalar_t, 3, 1> positionError = desiredPosition - currentPosition;
-  Eigen::Quaternion<ad_scalar_t> currentOrientationQuat = matrixToQuaternion(currentOrientation);
-  Eigen::Matrix<ad_scalar_t, 3, 1> orientationError = ocs2::quaternionDistance(currentOrientationQuat, desiredOrientation);
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& currentBPosition = state.head<7>().tail<3>();  
+  const Eigen::Quaternion<ad_scalar_t> currentBOrientationQuat(state.head<7>().head<4>());
 
-  Eigen::Matrix<ad_scalar_t, 6, 1> error;
-  error << positionError, orientationError;
+  //Compute errors
+  Eigen::Matrix<ad_scalar_t, 3, 1> orientationEEError = ocs2::quaternionDistance(currentEEOrientationQuat, desiredEEOrientation);
+  Eigen::Matrix<ad_scalar_t, 3, 1> positionEEError = desiredEEPosition - currentEEPosition;
+
+  Eigen::Matrix<ad_scalar_t, 3, 1> orientationBError = ocs2::quaternionDistance(currentBOrientationQuat, desiredBOrientation);
+  Eigen::Matrix<ad_scalar_t, 3, 1> positionBError = desiredBPosition - currentBPosition;
+
+  //weights
+  Eigen::Matrix<ad_scalar_t, 9, 1> error;
+  error << positionEEError, orientationEEError,positionBError[0], positionBError[1],orientationBError[2];// only adding base x,y, th
 
   costValues = ad_intermediate_cost_vector_t();
   costValues << R_.array().sqrt().matrix().cast<ad_scalar_t>() * input, base_ee_Q_.array().sqrt().matrix().cast<ad_scalar_t>() * error;
@@ -62,24 +89,39 @@ void QuadraticBaseEETrackingCost::terminalCostFunction(ad_interface_t::ad_scalar
                                                             const ad_interface_t::ad_dynamic_vector_t& state,
                                                             const ad_interface_t::ad_dynamic_vector_t& parameters,
                                                             ad_terminal_cost_vector_t& costValues) const {
-  const Eigen::Quaternion<ad_scalar_t> desiredOrientation(parameters.head<4>());
-  const Eigen::Matrix<ad_scalar_t, 3, 1>& desiredPosition = parameters.tail<3>();
+  // Get desireds
+  const Eigen::Quaternion<ad_scalar_t> desiredEEOrientation(parameters.head<7>().head<4>());
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& desiredEEPosition = parameters.head<7>().tail<3>();
 
+  const Eigen::Quaternion<ad_scalar_t> desiredBOrientation(parameters.head<14>().tail<7>().head<4>());
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& desiredBPosition = parameters.head<14>().tail<7>().tail<3>();
+
+
+
+  // current EE Transform to (q,p)
   Eigen::Matrix<ad_scalar_t, 4, 4> currentEEPose;
-  kinematics_->computeState2EndeffectorTransform(currentEEPose, state);
+  kinematics_->computeState2EndeffectorTransform(currentEEPose, state); 
 
-  const Eigen::Matrix<ad_scalar_t, 3, 3>& currentOrientation = currentEEPose.topLeftCorner<3, 3>();
-  const Eigen::Matrix<ad_scalar_t, 3, 1>& currentPosition = currentEEPose.topRightCorner<3, 1>();
+  const Eigen::Matrix<ad_scalar_t, 3, 3>& currentEEOrientation = currentEEPose.topLeftCorner<3, 3>();
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& currentEEPosition = currentEEPose.topRightCorner<3, 1>();
+  Eigen::Quaternion<ad_scalar_t> currentEEOrientationQuat = matrixToQuaternion(currentEEOrientation);
 
-  Eigen::Matrix<ad_scalar_t, 3, 1> positionError = desiredPosition - currentPosition;
-  Eigen::Quaternion<ad_scalar_t> currentOrientationQuat = matrixToQuaternion(currentOrientation);
-  Eigen::Matrix<ad_scalar_t, 3, 1> orientationError = ocs2::quaternionDistance(currentOrientationQuat, desiredOrientation);
+  const Eigen::Matrix<ad_scalar_t, 3, 1>& currentBPosition = state.head<7>().tail<3>();  
+  const Eigen::Quaternion<ad_scalar_t> currentBOrientationQuat(state.head<7>().head<4>());
 
-  Eigen::Matrix<ad_scalar_t, 6, 1> error;
-  error << positionError, orientationError;
+  //Compute errors
+  Eigen::Matrix<ad_scalar_t, 3, 1> orientationEEError = ocs2::quaternionDistance(currentEEOrientationQuat, desiredEEOrientation);
+  Eigen::Matrix<ad_scalar_t, 3, 1> positionEEError = desiredEEPosition - currentEEPosition;
+
+  Eigen::Matrix<ad_scalar_t, 3, 1> orientationBError = ocs2::quaternionDistance(currentBOrientationQuat, desiredBOrientation);
+  Eigen::Matrix<ad_scalar_t, 3, 1> positionBError = desiredBPosition - currentBPosition;
+
+  //weights
+  Eigen::Matrix<ad_scalar_t, 9, 1> error;
+  error << positionEEError, orientationEEError,positionBError[0], positionBError[1],orientationBError[2];// only adding base x,y, th
 
   costValues = ad_terminal_cost_vector_t();
-  costValues = base_ee_QFinal_.array().sqrt().matrix().cast<ad_scalar_t>() * error;
+  costValues = base_ee_QFinal_.array().sqrt().matrix().cast<ad_scalar_t>() * error;  
 }
 
 QuadraticBaseEETrackingCost::dynamic_vector_t QuadraticBaseEETrackingCost::getIntermediateParameters(
@@ -101,7 +143,7 @@ QuadraticBaseEETrackingCost::dynamic_vector_t QuadraticBaseEETrackingCost::inter
     QuadraticBaseEETrackingCost::scalar_t time) const {
   const auto& desiredTimeTrajectory = costDesiredTrajectoriesPtr_->desiredTimeTrajectory();
   const auto& desiredStateTrajectory = costDesiredTrajectoriesPtr_->desiredStateTrajectory();
-  return interpolatePoseTrajectory(desiredTimeTrajectory, desiredStateTrajectory, time);
+  return interpolateBaseArmTrajectory(desiredTimeTrajectory, desiredStateTrajectory, time);
 }
 
 Eigen::Quaternion<QuadraticBaseEETrackingCost::ad_scalar_t> QuadraticBaseEETrackingCost::matrixToQuaternion(

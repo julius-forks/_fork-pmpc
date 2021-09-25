@@ -288,8 +288,7 @@ bool AsKinematicSimulation::mpcUpdate(ros::Rate rate)
         //        admittanceReferenceModule.adaptPath(rate.cycleTime().toSec(), adaptedCostDesiredTrajectory.desiredStateTrajectory(),
         //        measuredWrench); mpcInterface_->setTargetTrajectories(adaptedCostDesiredTrajectory);
         boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-        mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);
-        costDesiredTrajectories_.display();
+        mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);        
       }
       {
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
@@ -380,8 +379,11 @@ void AsKinematicSimulation::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.clear();
   reference_vector_t reference = reference_vector_t::Zero();
   auto currentEndEffectorPose = getEndEffectorPose();
+  auto currentBasePose = getBasePose();
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
+  reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
   Observation observation;
   {
@@ -395,6 +397,8 @@ void AsKinematicSimulation::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.desiredStateTrajectory().push_back(reference);
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
+  costDesiredTrajectories_.display();
+
 }
 
 void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
@@ -406,18 +410,20 @@ void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory 
   costDesiredTrajectories_.desiredStateTrajectory().resize(N);
   costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
   costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-
-  kindr::HomTransformQuatD lastPose; // setup temp
+  
   for (int i = 0; i < N; i++)
   {
-    kindr::HomTransformQuatD desiredPose;
+    kindr::HomTransformQuatD desiredEEPose;
+    kindr::HomTransformQuatD desiredBPose;
     reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].pose, desiredPose); // to kindr pose
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose); // to kindr pose
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].base_pose, desiredBPose); // to kindr pose
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
+    reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+    reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
 
     costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
-
     costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
 
     // Deal with feasibility. This should be a check rather than retime.
@@ -429,9 +435,9 @@ void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory 
     {
       costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
     }
-
-    lastPose = desiredPose;
+    
   }
+  costDesiredTrajectories_.display();
 }
 
 void AsKinematicSimulation::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
@@ -479,7 +485,9 @@ void AsKinematicSimulation::publishBaseTransform(const Observation &observation)
   geometry_msgs::TransformStamped base_transform;
   base_transform.header.frame_id = "odom";
   base_transform.child_frame_id = "base_link_footprint";
-  const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+
+  Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+  currentRotation.normalize();
   const Eigen::Matrix<double, 3, 1> currentPosition = observation.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
 
   base_transform.transform.translation.x = currentPosition(0);
@@ -543,6 +551,18 @@ kindr::HomTransformQuatD AsKinematicSimulation::getEndEffectorPose()
     Eigen::Quaterniond eigenBaseRotation(endEffectorToWorldTransform.topLeftCorner<3, 3>());
     return kindr::HomTransformQuatD(kindr::Position3D(endEffectorToWorldTransform.topRightCorner<3, 1>()),
                                     kindr::RotationQuaternionD(eigenBaseRotation));
+  }
+}
+
+kindr::HomTransformQuatD AsKinematicSimulation::getBasePose()
+{
+  {
+    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);    
+    const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation_.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+    const Eigen::Matrix<double, 3, 1> currentPosition = observation_.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
+
+    return kindr::HomTransformQuatD(kindr::Position3D(currentPosition),
+                                    kindr::RotationQuaternionD(currentRotation));
   }
 }
 

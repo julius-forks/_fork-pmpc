@@ -360,8 +360,11 @@ void AsMPCController::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.clear();
   reference_vector_t reference = reference_vector_t::Zero();
   auto currentEndEffectorPose = getEndEffectorPose();
+  auto currentBasePose = getBasePose();
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
+  reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
   Observation observation;
   {
@@ -377,15 +380,53 @@ void AsMPCController::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
 }
 
+void AsMPCController::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+{
+  // USECASE put 0 base pose cost if you are using this
+  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+  costDesiredTrajectories_.clear();
+  int N = taskTrajectory.points.size(); // point count
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+  
+  for (int i = 0; i < N; i++)
+  {
+    kindr::HomTransformQuatD desiredEEPose;
+    kindr::HomTransformQuatD desiredBPose;
+    reference_vector_t reference;
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose); // to kindr pose
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].base_pose, desiredBPose); // to kindr pose
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
+    reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+    reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
+
+    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
+    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+
+    // Deal with feasibility. This should be a check rather than retime.
+    if (i == 0)
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
+    }
+    else
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
+    }
+    
+  }
+}
+
 void AsMPCController::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
 {
   // USECASE put 0 base pose cost if you are using this
   geometry_msgs::Pose currentEndEffectorPose;
-  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);
+  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);  
   kindr::HomTransformQuatD desiredPose;
   kindr::HomTransformQuatD currentPose;
   kindr_ros::convertFromRosGeometryMsg(msgPtr->pose, desiredPose);
-  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);
+  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);  
 
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
@@ -403,52 +444,18 @@ void AsMPCController::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedC
   reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
 
   costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
-  costDesiredTrajectories_.desiredStateTrajectory()[0] = reference1;
+  costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
   costDesiredTrajectories_.desiredInputTrajectory()[0] = MpcInterface::input_vector_t::Zero();
-  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();
+  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();  
 
   auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
   auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
 
-  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;  
 
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
-}
-
-void AsMPCController::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
-{
-  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-  costDesiredTrajectories_.clear();
-  int N = taskTrajectory.points.size(); // point count
-  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
-  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
-  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-
-  kindr::HomTransformQuatD lastPose; // setup temp
-  for (int i = 0; i < N; i++)
-  {
-    kindr::HomTransformQuatD desiredPose;
-    reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].pose, desiredPose); // to kindr pose
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
-    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
-
-    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
-
-    // Deal with feasibility. This should be a check rather than retime.
-    if (i == 0)
-    {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
-    }
-    else
-    {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + taskTrajectory.points[i].time_from_start.toSec();
-    }
-
-    lastPose = desiredPose;
-  }
+  
 }
 
 void AsMPCController::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
@@ -524,6 +531,18 @@ kindr::HomTransformQuatD AsMPCController::getEndEffectorPose()
     Eigen::Quaterniond eigenBaseRotation(endEffectorToWorldTransform.topLeftCorner<3, 3>());
     return kindr::HomTransformQuatD(kindr::Position3D(endEffectorToWorldTransform.topRightCorner<3, 1>()),
                                     kindr::RotationQuaternionD(eigenBaseRotation));
+  }
+}
+
+kindr::HomTransformQuatD AsMPCController::getBasePose()
+{
+  {
+    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);    
+    const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation_.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+    const Eigen::Matrix<double, 3, 1> currentPosition = observation_.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
+
+    return kindr::HomTransformQuatD(kindr::Position3D(currentPosition),
+                                    kindr::RotationQuaternionD(currentRotation));
   }
 }
 
