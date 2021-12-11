@@ -33,21 +33,21 @@
 
 namespace perceptive_mpc {
 
-inline ocs2::dynamic_vector_t interpolatePoseTrajectory(const ocs2::scalar_array_t& timeTrajectory,
+inline ocs2::dynamic_vector_t interpolateBaseArmTrajectory(const ocs2::scalar_array_t& timeTrajectory,
                                                         const ocs2::dynamic_vector_array_t& stateTrajectory, ocs2::scalar_t time) {
-  ocs2::dynamic_vector_t reference((int)Definitions::POSE_DIM);
+  ocs2::dynamic_vector_t reference((int)Definitions::REFERENCE_DIM);
 
   auto it = std::lower_bound(timeTrajectory.begin(), timeTrajectory.end(), time);
   int timeAIdx = it - timeTrajectory.begin() - 1;
   if (timeAIdx == -1) {
-    reference = stateTrajectory[0].head((int)Definitions::POSE_DIM);
+    reference = stateTrajectory[0].head((int)Definitions::REFERENCE_DIM);
     /*
         std::cerr << "t:" << t << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" << desiredTimeTrajectory.back()
                   << std::endl << ", timeAIdx:" << timeAIdx << ", N:" << desiredTimeTrajectory.size() << ", t_idx:" <<
        desiredTimeTrajectory[timeAIdx] << std::endl << std::endl;
     */
   } else if (timeAIdx == timeTrajectory.size() - 1) {
-    reference = stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM);
+    reference = stateTrajectory[timeAIdx].head((int)Definitions::REFERENCE_DIM);
     ;
     /*
         std::cerr << "t:" << t << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" << desiredTimeTrajectory.back()
@@ -56,13 +56,22 @@ inline ocs2::dynamic_vector_t interpolatePoseTrajectory(const ocs2::scalar_array
     */
   } else {
     double tau = (time - timeTrajectory[timeAIdx]) / (timeTrajectory[timeAIdx + 1] - timeTrajectory[timeAIdx]);
-    const Eigen::Quaterniond quatA(stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM).head<4>());
-    const Eigen::Quaterniond quatB(stateTrajectory[timeAIdx + 1].head((int)Definitions::POSE_DIM).head<4>());
+
+    const Eigen::Quaterniond ee_quatA(stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM).head<4>());
+    const Eigen::Quaterniond ee_quatB(stateTrajectory[timeAIdx + 1].head((int)Definitions::POSE_DIM).head<4>());
+
+    const Eigen::Quaterniond base_quatA(stateTrajectory[timeAIdx].tail((int)Definitions::BASE_STATE_DIM_).head<4>());
+    const Eigen::Quaterniond base_quatB(stateTrajectory[timeAIdx + 1].tail((int)Definitions::BASE_STATE_DIM_).head<4>());
+
     // interpolate the quaternions using slerp
-    reference.head<4>() = quatA.slerp(tau, quatB).coeffs();
+    reference.head<(int)Definitions::POSE_DIM>().head<4>() = ee_quatA.slerp(tau, ee_quatB).coeffs();
+    reference.tail<(int)Definitions::BASE_STATE_DIM_>().head<4>() = base_quatA.slerp(tau, base_quatB).coeffs();
     // interpolate cartesian space position linearly
-    reference.tail<3>() = (1 - tau) * stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM).tail<3>() +
+    reference.head<(int)Definitions::POSE_DIM>().tail<3>() = (1 - tau) * stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM).tail<3>() +
                           tau * stateTrajectory[timeAIdx + 1].head((int)Definitions::POSE_DIM).tail<3>();
+
+    reference.tail<(int)Definitions::BASE_STATE_DIM_>().tail<3>() = (1 - tau) * stateTrajectory[timeAIdx].tail((int)Definitions::BASE_STATE_DIM_).tail<3>() +
+                          tau * stateTrajectory[timeAIdx + 1].tail((int)Definitions::BASE_STATE_DIM_).tail<3>();
     /*    std::cerr << "t:" << t << ", tau:" << tau << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" <<
        desiredTimeTrajectory.back()
                   << std::endl << ", timeAIdx:" << timeAIdx << ", N:" << desiredTimeTrajectory.size() << ", t_idx:" <<
@@ -73,6 +82,5 @@ inline ocs2::dynamic_vector_t interpolatePoseTrajectory(const ocs2::scalar_array
   }
   return reference;
 }
-
 
 }  // namespace perceptive_mpc

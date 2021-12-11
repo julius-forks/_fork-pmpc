@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include <ocs2_core/cost/RelaxedBarrierCost.h>
+#include <ocs2_core/cost/QuadraticGaussNewtonCostBaseAD.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
 #include <algorithm>
@@ -44,11 +44,21 @@
 
 namespace perceptive_mpc {
 
-class StabilitySoftConstraint : public ocs2::RelaxedBarrierCost<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 1, 0> {
+struct QuadraticBaseEETrackingCostConfig {
+  Eigen::Matrix<double, 9, 9> base_ee_Q = Eigen::Matrix<double, 9, 9>::Identity();//base x,y ,yaw, ee xyz, rpy
+  Eigen::Matrix<double, 9, 9> base_ee_QFinal = Eigen::Matrix<double, 9, 9>::Zero();//base x,y ,yaw, ee xyz, rpy
+  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
+  Eigen::Matrix4d wrist2ToEETransform = Eigen::Matrix4d::Identity();
+  Eigen::Matrix4d baseToArmMount = Eigen::Matrix4d::Identity();
+  std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics;
+};
+
+class QuadraticBaseEETrackingCost
+    : public ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 9 + Definitions::INPUT_DIM_, 9> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef ocs2::RelaxedBarrierCost<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 1, 0> BASE;
+  typedef ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 9 + Definitions::INPUT_DIM_, 9> BASE;
   using typename BASE::ad_scalar_t;
   using typename BASE::dynamic_vector_t;
   using typename BASE::input_matrix_t;
@@ -56,40 +66,28 @@ class StabilitySoftConstraint : public ocs2::RelaxedBarrierCost<Definitions::STA
   using typename BASE::scalar_t;
   using typename BASE::state_matrix_t;
   using typename BASE::state_vector_t;
-  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 6, 6>;
+  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 9, 9>;
   using typename BASE::intermediate_cost_vector_t;
   using typename BASE::terminal_cost_vector_t;
-
-  struct Settings {
-    BASE::Config relaxedBarrierConfig = {1e-3, 1e-4};
-    double supportCircleRadius = 0.3;
-    std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics;
-  };
 
   /**
    * Constructor
    */
-  StabilitySoftConstraint(const Settings& settings) : BASE(settings.relaxedBarrierConfig), settings_(settings) {}
+  QuadraticBaseEETrackingCost(const QuadraticBaseEETrackingCostConfig& config)
+      : base_ee_Q_(config.base_ee_Q), base_ee_QFinal_(config.base_ee_QFinal), R_(config.R), kinematics_(config.kinematics) {}
 
   /*
    * Copy constructor
    * @param rhs
    */
-  StabilitySoftConstraint(const StabilitySoftConstraint& rhs) = default;
+  QuadraticBaseEETrackingCost(const QuadraticBaseEETrackingCost& rhs) = default;
 
   /**
    * Default destructor
    */
-  ~StabilitySoftConstraint() override = default;
+  ~QuadraticBaseEETrackingCost() override = default;
 
-  StabilitySoftConstraint* clone() const override;
-
-  template <typename SCALAR_T>
-  inline SCALAR_T computeCOMConstraintValue(const Eigen::Matrix<SCALAR_T, -1, 1>& state) const {
-    using vector3_ad_t = Eigen::Matrix<SCALAR_T, 3, 1>;
-    vector3_ad_t com = settings_.kinematics->getCOMBaseFrame(state);
-    return settings_.supportCircleRadius * settings_.supportCircleRadius - com[0] * com[0] - com[1] * com[1];
-  };
+  QuadraticBaseEETrackingCost* clone() const override;
 
  protected:
   /**
@@ -108,6 +106,19 @@ class StabilitySoftConstraint : public ocs2::RelaxedBarrierCost<Definitions::STA
                                         const ad_dynamic_vector_t& parameters, ad_intermediate_cost_vector_t& costValues) const override;
 
   /**
+   * Interface method to the terminal cost function. This method should be implemented by the derived class.
+   *
+   * @tparam scalar type. All the floating point operations should be with this type.
+   * @param [in] time: time.
+   * @param [in] state: state vector.
+   * @param [in] stateDesired: desired state vector.
+   * @param [in] logicVariable: logic variable vector.
+   * @param [out] costValue: cost value.
+   */
+  virtual void terminalCostFunction(ad_scalar_t time, const ad_dynamic_vector_t& state, const ad_dynamic_vector_t& parameters,
+                                    ad_terminal_cost_vector_t& costValues) const override;
+
+  /**
    * Gets a user-defined cost parameters, applied to the intermediate costs
    *
    * @param [in] time: Current time.
@@ -123,16 +134,35 @@ class StabilitySoftConstraint : public ocs2::RelaxedBarrierCost<Definitions::STA
    */
   virtual size_t getNumIntermediateParameters() const override;
 
- public:
+  /**
+   * Gets a user-defined cost parameters, applied to the terminal costs
+   *
+   * @return The cost function parameters at a certain time
+   */
+  virtual dynamic_vector_t getTerminalParameters(scalar_t time) const override;
+
   /**
    * Interpolate the reference trajectory
    *
    * @return The cost function parameters at a certain time
    */
-  dynamic_vector_t interpolateReference(StabilitySoftConstraint::scalar_t time) const;
+  dynamic_vector_t interpolateReference(QuadraticBaseEETrackingCost::scalar_t time) const;
+
+  /**
+   * Number of parameters for the terminal cost function.
+   * This number must be remain constant after the model libraries are created
+   *
+   * @return number of parameters
+   */
+  virtual size_t getNumTerminalParameters() const override;
+
+  Eigen::Quaternion<ad_scalar_t> matrixToQuaternion(const Eigen::Matrix<ad_scalar_t, 3, 3>& R) const;
 
  private:
-  const Settings settings_;
+  const state_cost_matrix_t base_ee_Q_;
+  const input_matrix_t R_;
+  const state_cost_matrix_t base_ee_QFinal_;
+  const std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics_;
 };
 
 }  // namespace perceptive_mpc

@@ -43,11 +43,12 @@
 
 using namespace perceptive_mpc;
 
-AsKinematicSimulation::AsKinematicSimulation(const ros::NodeHandle& nh)
+AsKinematicSimulation::AsKinematicSimulation(const ros::NodeHandle &nh)
     : nh_(nh), mpcUpdateFailed_(false), planAvailable_(false), kinematicInterfaceConfig_() {}
 
-bool AsKinematicSimulation::run() {
-  
+bool AsKinematicSimulation::run()
+{
+
   parseParameters();
   loadTransforms();
 
@@ -78,23 +79,19 @@ bool AsKinematicSimulation::run() {
   // Init ros stuff
   armStatePublisher_ = nh_.advertise<sensor_msgs::JointState>("/joint_states", 10);
   ROS_INFO("Waiting for joint states subscriber ...");
-  while (ros::ok() && armStatePublisher_.getNumSubscribers() == 0) {
+  while (ros::ok() && armStatePublisher_.getNumSubscribers() == 0)
+  {
     ros::Rate(100).sleep();
   }
   ROS_INFO("Joint state subscriber is connected.");
-  
 
   desiredEndEffectorPoseSubscriber_ =
       nh_.subscribe("/perceptive_mpc/desired_end_effector_pose", 1, &AsKinematicSimulation::desiredEndEffectorPoseCb, this);
-  desiredEndEffectorWrenchPoseTrajectorySubscriber_ = nh_.subscribe("/perceptive_mpc/desired_end_effector_wrench_pose_trajectory", 1,
-                                                                    &AsKinematicSimulation::desiredWrenchPoseTrajectoryCb, this);
+
   endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("measured_end_effector_pose", 100);
   taskTrajectorySubscriber_ = nh_.subscribe("/print_tasker/trajectory_cmd", 1, &AsKinematicSimulation::taskTrajectoryCmdCb, this);
 
   pointsOnRobotPublisher_ = nh_.advertise<visualization_msgs::MarkerArray>("/perceptive_mpc/collision_points", 1, false);
-
-  comPublisher_ = nh_.advertise<geometry_msgs::PointStamped>("/perceptive_mpc/com", 1, false);
-  zmpPublisher_ = nh_.advertise<geometry_msgs::PointStamped>("/perceptive_mpc/zmp", 1, false);
 
   // Tracker worker
   std::thread trackerWorker(&AsKinematicSimulation::trackerLoop, this, ros::Rate(controlLoopFrequency_));
@@ -113,19 +110,24 @@ bool AsKinematicSimulation::run() {
   return true;
 }
 
-void AsKinematicSimulation::loadTransforms() {
+void AsKinematicSimulation::loadTransforms()
+{
   asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
   tf2_ros::Buffer tfBuffer;
   tf2_ros::TransformListener tfListener(tfBuffer);
   {
     geometry_msgs::TransformStamped transformStamped;
 
-    while (ros::ok()) {
-    
-      try {
+    while (ros::ok())
+    {
+
+      try
+      {
         transformStamped = tfBuffer.lookupTransform("base_link_footprint", kinematics.armMountLinkName(), ros::Time(0), ros::Duration(1.0));
         break;
-      } catch (tf2::TransformException& ex) {
+      }
+      catch (tf2::TransformException &ex)
+      {
         ROS_WARN("%s", ex.what());
         // throw;
       }
@@ -140,14 +142,18 @@ void AsKinematicSimulation::loadTransforms() {
     kinematicInterfaceConfig_.transformBase_X_ArmMount(0, 3) = transformStamped.transform.translation.x;
     kinematicInterfaceConfig_.transformBase_X_ArmMount(1, 3) = transformStamped.transform.translation.y;
     kinematicInterfaceConfig_.transformBase_X_ArmMount(2, 3) = transformStamped.transform.translation.z;
-    ROS_INFO_STREAM("baseToArmMount_: " << std::endl << kinematicInterfaceConfig_.transformBase_X_ArmMount);
+    ROS_INFO_STREAM("baseToArmMount_: " << std::endl
+                                        << kinematicInterfaceConfig_.transformBase_X_ArmMount);
   }
 
   {
     geometry_msgs::TransformStamped transformStamped;
-    try {
+    try
+    {
       transformStamped = tfBuffer.lookupTransform(kinematics.toolMountLinkName(), "extruder_ee", ros::Time(0), ros::Duration(1.0));
-    } catch (tf2::TransformException& ex) {
+    }
+    catch (tf2::TransformException &ex)
+    {
       ROS_ERROR("%s", ex.what());
       throw;
     }
@@ -160,11 +166,13 @@ void AsKinematicSimulation::loadTransforms() {
     kinematicInterfaceConfig_.transformToolMount_X_Endeffector(0, 3) = transformStamped.transform.translation.x;
     kinematicInterfaceConfig_.transformToolMount_X_Endeffector(1, 3) = transformStamped.transform.translation.y;
     kinematicInterfaceConfig_.transformToolMount_X_Endeffector(2, 3) = transformStamped.transform.translation.z;
-    ROS_INFO_STREAM("wrist2ToEETransform_: " << std::endl << kinematicInterfaceConfig_.transformToolMount_X_Endeffector);
+    ROS_INFO_STREAM("wrist2ToEETransform_: " << std::endl
+                                             << kinematicInterfaceConfig_.transformToolMount_X_Endeffector);
   }
 }
 
-void AsKinematicSimulation::parseParameters() {
+void AsKinematicSimulation::parseParameters()
+{
   ros::NodeHandle pNh("~");
 
   mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
@@ -175,24 +183,31 @@ void AsKinematicSimulation::parseParameters() {
   maxAngularVelocity_ = pNh.param<double>("max_angular_velocity", 1.0);
   controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 200);
   auto defaultForceStd = pNh.param<std::vector<double>>("default_external_force", std::vector<double>());
-  if (defaultForceStd.size() == 3) {
+  if (defaultForceStd.size() == 3)
+  {
     defaultForce_ = Eigen::Vector3d::Map(defaultForceStd.data(), 3);
   }
   auto defaultTorqueStd = pNh.param<std::vector<double>>("default_external_torque", std::vector<double>());
-  if (defaultTorqueStd.size() == 3) {
+  if (defaultTorqueStd.size() == 3)
+  {
     defaultTorque_ = Eigen::Vector3d::Map(defaultTorqueStd.data(), 3);
   }
 }
 
-bool AsKinematicSimulation::trackerLoop(ros::Rate rate) {
-  while (ros::ok()) {
-    try {
-      if (mpcUpdateFailed_) {
+bool AsKinematicSimulation::trackerLoop(ros::Rate rate)
+{
+  while (ros::ok())
+  {
+    try
+    {
+      if (mpcUpdateFailed_)
+      {
         ROS_ERROR_STREAM("Mpc update failed, stop.");
         return false;
       }
 
-      if (!planAvailable_) {
+      if (!planAvailable_)
+      {
         rate.sleep();
         continue;
       }
@@ -210,15 +225,20 @@ bool AsKinematicSimulation::trackerLoop(ros::Rate rate) {
       MpcInterface::input_vector_t controlInput;
       MpcInterface::state_vector_t optimalState;
       size_t subsystem;
-      try {
+      try
+      {
         mpcInterface_->updatePolicy();
         mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
         // TODO: for integration on hardware, send the computed control inputs to the motor controllers
-      } catch (const std::runtime_error& ex) {
+      }
+      catch (const std::runtime_error &ex)
+      {
         ROS_ERROR_STREAM("runtime_error occured!");
         ROS_ERROR_STREAM("Caught exception while calling [mpcInterface_->evaluatePolicy]. Message: " << ex.what());
         return false;
-      } catch (const std::exception& ex) {
+      }
+      catch (const std::exception &ex)
+      {
         ROS_ERROR_STREAM("exception occured!");
         ROS_ERROR_STREAM("Caught exception while calling [mpcInterface_->evaluatePolicy]. Message: " << ex.what());
         return false;
@@ -231,12 +251,15 @@ bool AsKinematicSimulation::trackerLoop(ros::Rate rate) {
                                         << "    controlInput:  " << controlInput.transpose() << std::endl
                                         << std::endl);
       optimalState_ = optimalState;
-
-    } catch (const std::runtime_error& ex) {
+    }
+    catch (const std::runtime_error &ex)
+    {
       ROS_ERROR_STREAM("runtime_error occured!");
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::trackerLoop]. Message: " << ex.what());
       return false;
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception &ex)
+    {
       ROS_ERROR_STREAM("exception occured!");
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::trackerLoop]. Message: " << ex.what());
       return false;
@@ -246,59 +269,18 @@ bool AsKinematicSimulation::trackerLoop(ros::Rate rate) {
   return true;
 }
 
-
-void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+bool AsKinematicSimulation::mpcUpdate(ros::Rate rate)
 {
-  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-  costDesiredTrajectories_.clear();
-  int N = taskTrajectory.points.size(); // point count
-  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
-  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
-  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-
-  kindr::HomTransformQuatD lastPose; // setup temp
-  for (int i = 0; i < N; i++)
+  while (ros::ok())
   {
-    kindr::HomTransformQuatD desiredPose;
-    reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].pose, desiredPose); // to kindr pose
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
-    Eigen::Vector3d force;
-    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
-    Eigen::Vector3d torque;
-    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
-    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
-
-    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
-
-    // Deal with feasibility. This should be a check rather than retime.
-    if (i == 0)
+    if (mpcUpdateFailed_)
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
-    }
-    else
-    {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + taskTrajectory.points[i].time_from_start.toSec();
-
-    }
-
-    lastPose = desiredPose;    
-  }
-
-}
-
-
-
-
-bool AsKinematicSimulation::mpcUpdate(ros::Rate rate) {
-  while (ros::ok()) {
-    if (mpcUpdateFailed_) {
       rate.sleep();
       continue;
     }
 
-    try {
+    try
+    {
       {
         // TODO: uncomment for admittance control on hardware:
         //        auto adaptedCostDesiredTrajectory = costDesiredTrajectories_;
@@ -306,23 +288,27 @@ bool AsKinematicSimulation::mpcUpdate(ros::Rate rate) {
         //        admittanceReferenceModule.adaptPath(rate.cycleTime().toSec(), adaptedCostDesiredTrajectory.desiredStateTrajectory(),
         //        measuredWrench); mpcInterface_->setTargetTrajectories(adaptedCostDesiredTrajectory);
         boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-        mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);
-        costDesiredTrajectories_.display();
+        mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);        
       }
       {
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
         setCurrentObservation(observation_);
       }
-      if (esdfCachingServer_) {
+      if (esdfCachingServer_)
+      {
         esdfCachingServer_->updateInterpolator();
       }
       mpcInterface_->advanceMpc();
-    } catch (const std::runtime_error& ex) {
+    }
+    catch (const std::runtime_error &ex)
+    {
       ROS_ERROR_STREAM("runtime_error occured!");
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::mpcUpdate]. Message: " << ex.what());
       mpcUpdateFailed_ = true;
       return false;
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception &ex)
+    {
       ROS_ERROR_STREAM("exception occured!");
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::mpcUpdate]. Message: " << ex.what());
       mpcUpdateFailed_ = true;
@@ -334,9 +320,12 @@ bool AsKinematicSimulation::mpcUpdate(ros::Rate rate) {
   return true;
 }
 
-bool AsKinematicSimulation::tfUpdate(ros::Rate rate) {
-  while (ros::ok()) {
-    try {
+bool AsKinematicSimulation::tfUpdate(ros::Rate rate)
+{
+  while (ros::ok())
+  {
+    try
+    {
       Observation currentObservation;
       {
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
@@ -345,7 +334,8 @@ bool AsKinematicSimulation::tfUpdate(ros::Rate rate) {
       publishBaseTransform(currentObservation);
       publishArmState(currentObservation);
       publishEndEffectorPose();
-      if (pointsOnRobot_) {
+      if (pointsOnRobot_)
+      {
         pointsOnRobotPublisher_.publish(pointsOnRobot_->getVisualization(currentObservation.state()));
       }
 
@@ -355,12 +345,16 @@ bool AsKinematicSimulation::tfUpdate(ros::Rate rate) {
         costDesiredTrajectories = costDesiredTrajectories_;
       }
 
-      publishZmp(currentObservation, costDesiredTrajectories);
-    } catch (const std::runtime_error& ex) {
+      
+    }
+    catch (const std::runtime_error &ex)
+    {
       ROS_ERROR_STREAM("runtime_error occured!");
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::tfUpdate]. Message: " << ex.what());
       return false;
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception &ex)
+    {
       ROS_ERROR_STREAM("exception occured!");
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::tfUpdate]. Message: " << ex.what());
       return false;
@@ -370,7 +364,8 @@ bool AsKinematicSimulation::tfUpdate(ros::Rate rate) {
   return true;
 }
 
-void AsKinematicSimulation::setCurrentObservation(const Observation& observation) {
+void AsKinematicSimulation::setCurrentObservation(const Observation &observation)
+{
   // the quaternion is not closed under addition
   // the state integration will make the quaternion non unique as the simulatoin goes on
   Eigen::Quaterniond currentBaseRotation = Eigen::Quaterniond(observation.state().head<4>());
@@ -378,15 +373,17 @@ void AsKinematicSimulation::setCurrentObservation(const Observation& observation
   mpcInterface_->setCurrentObservation(observation);
 }
 
-void AsKinematicSimulation::initializeCostDesiredTrajectory() {
+void AsKinematicSimulation::initializeCostDesiredTrajectory()
+{
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   reference_vector_t reference = reference_vector_t::Zero();
   auto currentEndEffectorPose = getEndEffectorPose();
+  auto currentBasePose = getBasePose();
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
-  reference.tail<Definitions::WRENCH_DIM>().head<3>() = defaultForce_;
-  reference.tail<Definitions::WRENCH_DIM>().tail<3>() = defaultTorque_;
+  reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
   Observation observation;
   {
@@ -400,75 +397,97 @@ void AsKinematicSimulation::initializeCostDesiredTrajectory() {
   costDesiredTrajectories_.desiredStateTrajectory().push_back(reference);
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
+  costDesiredTrajectories_.display();
+
 }
 
-void AsKinematicSimulation::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr) {
-  geometry_msgs::Pose currentEndEffectorPose;
-  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);
-
-  perceptive_mpc::WrenchPoseTrajectory wrenchPoseTrajectory;
-  wrenchPoseTrajectory.header.stamp = ros::Time::now();
-  wrenchPoseTrajectory.posesWrenches.resize(2);
-  wrenchPoseTrajectory.posesWrenches[0].header.stamp = wrenchPoseTrajectory.header.stamp;
-  wrenchPoseTrajectory.posesWrenches[0].pose = currentEndEffectorPose;
-  tf2::toMsg(defaultForce_, wrenchPoseTrajectory.posesWrenches[0].wrench.force);
-  tf2::toMsg(defaultTorque_, wrenchPoseTrajectory.posesWrenches[0].wrench.torque);
-
-  wrenchPoseTrajectory.posesWrenches[1].header.stamp = wrenchPoseTrajectory.header.stamp;
-  wrenchPoseTrajectory.posesWrenches[1].pose = msgPtr->pose;
-  tf2::toMsg(defaultForce_, wrenchPoseTrajectory.posesWrenches[1].wrench.force);
-  tf2::toMsg(defaultTorque_, wrenchPoseTrajectory.posesWrenches[1].wrench.torque);
-
-  desiredWrenchPoseTrajectoryCb(wrenchPoseTrajectory);
-}
-
-void AsKinematicSimulation::desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory) {
+void AsKinematicSimulation::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+{
+  // USECASE put 0 base pose cost if you are using this
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
-  int N = wrenchPoseTrajectory.posesWrenches.size();
+  int N = taskTrajectory.points.size(); // point count
   costDesiredTrajectories_.desiredStateTrajectory().resize(N);
   costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
   costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-  kindr::HomTransformQuatD lastPose;
-  for (int i = 0; i < N; i++) {
-    kindr::HomTransformQuatD desiredPose;
+  
+  for (int i = 0; i < N; i++)
+  {
+    kindr::HomTransformQuatD desiredEEPose;
+    kindr::HomTransformQuatD desiredBPose;
     reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(wrenchPoseTrajectory.posesWrenches[i].pose, desiredPose);
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
-    Eigen::Vector3d force;
-    tf2::fromMsg(wrenchPoseTrajectory.posesWrenches[i].wrench.force, force);
-    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
-    Eigen::Vector3d torque;
-    tf2::fromMsg(wrenchPoseTrajectory.posesWrenches[i].wrench.torque, torque);
-    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
-    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference;
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose); // to kindr pose
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].base_pose, desiredBPose); // to kindr pose
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
+    reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+    reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
 
+    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
     costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
 
-    if (i == 0) {
+    // Deal with feasibility. This should be a check rather than retime.
+    if (i == 0)
+    {
       costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
-    } else {
-      auto minTimeLinear = (desiredPose.getPosition() - lastPose.getPosition()).norm() / maxLinearVelocity_;
-      auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(lastPose.getRotation())) / maxAngularVelocity_;
-
-      auto lastOriginalTimeStamp = ros::Time(wrenchPoseTrajectory.posesWrenches[i - 1].header.stamp).toSec();
-      auto currentOriginalTimeStamp = ros::Time(wrenchPoseTrajectory.posesWrenches[i].header.stamp).toSec();
-      double originalTimingDiff = currentOriginalTimeStamp - lastOriginalTimeStamp;
-      double segmentDuration = std::max(originalTimingDiff, std::max(minTimeLinear, minTimeAngular));
-
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + segmentDuration;
     }
-
-    lastPose = desiredPose;
+    else
+    {
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
+    }
+    
   }
+  costDesiredTrajectories_.display();
 }
 
-void AsKinematicSimulation::publishBaseTransform(const Observation& observation) {
+void AsKinematicSimulation::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
+{
+  // USECASE put 0 base pose cost if you are using this
+  geometry_msgs::Pose currentEndEffectorPose;
+  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);  
+  kindr::HomTransformQuatD desiredPose;
+  kindr::HomTransformQuatD currentPose;
+  kindr_ros::convertFromRosGeometryMsg(msgPtr->pose, desiredPose);
+  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);  
+
+  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+  costDesiredTrajectories_.clear();
+  int N = 2;
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+
+  reference_vector_t reference0;
+  reference0.head<Definitions::POSE_DIM>().head<4>() = currentPose.getRotation().toImplementation().coeffs();
+  reference0.head<Definitions::POSE_DIM>().tail<3>() = currentPose.getPosition().toImplementation();
+
+  reference_vector_t reference1;
+  reference1.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
+  reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+
+  costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
+  costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
+  costDesiredTrajectories_.desiredInputTrajectory()[0] = MpcInterface::input_vector_t::Zero();
+  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();  
+
+  auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
+  auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
+
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;  
+
+  costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
+  costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
+  
+}
+
+void AsKinematicSimulation::publishBaseTransform(const Observation &observation)
+{
   geometry_msgs::TransformStamped base_transform;
   base_transform.header.frame_id = "odom";
   base_transform.child_frame_id = "base_link_footprint";
-  const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+
+  Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+  currentRotation.normalize();
   const Eigen::Matrix<double, 3, 1> currentPosition = observation.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
 
   base_transform.transform.translation.x = currentPosition(0);
@@ -484,19 +503,22 @@ void AsKinematicSimulation::publishBaseTransform(const Observation& observation)
   tfBroadcaster_.sendTransform(base_transform);
 }
 
-void AsKinematicSimulation::publishArmState(const Observation& observation) {
+void AsKinematicSimulation::publishArmState(const Observation &observation)
+{
   sensor_msgs::JointState armState;
   armState.header.stamp = ros::Time::now();
   armState.name = {"xarmjoint1", "xarmjoint2", "xarmjoint3", "xarmjoint4", "xarmjoint5", "xarmjoint6"};
   armState.position.resize(Definitions::ARM_STATE_DIM_);
   Eigen::VectorXd armConfiguration = observation.state().tail<6>();
-  for (size_t joint_idx = 0; joint_idx < Definitions::ARM_STATE_DIM_; joint_idx++) {
+  for (size_t joint_idx = 0; joint_idx < Definitions::ARM_STATE_DIM_; joint_idx++)
+  {
     armState.position[joint_idx] = armConfiguration(joint_idx);
   }
   armStatePublisher_.publish(armState);
 }
 
-void AsKinematicSimulation::publishEndEffectorPose() {
+void AsKinematicSimulation::publishEndEffectorPose()
+{
   geometry_msgs::PoseStamped endEffectorPoseMsg;
   static int endEffectorPoseCounter = 0;
   auto currentEndEffectorPose = getEndEffectorPose();
@@ -517,27 +539,8 @@ void AsKinematicSimulation::publishEndEffectorPose() {
   endEffectorPosePublisher_.publish(endEffectorPoseMsg);
 }
 
-void AsKinematicSimulation::publishZmp(const Observation& observation, const ocs2::CostDesiredTrajectories& costDesiredTrajectories) {
-  asArmKinematics<double> kinematicsInterface(kinematicInterfaceConfig_);
-  Eigen::Vector3d com = kinematicsInterface.getCOMBaseFrame(observation.state());
-  geometry_msgs::PointStamped comMsg;
-  comMsg.header.frame_id = "base_link_footprint";
-  comMsg.header.stamp = ros::Time::now();
-  comMsg.point = tf2::toMsg(com);
-  comPublisher_.publish(comMsg);
-
-  auto interpolatedPose = interpolatePoseTrajectory(costDesiredTrajectories.desiredTimeTrajectory(),
-                                                    costDesiredTrajectories.desiredStateTrajectory(), observation.time());
-  auto interpolatedWrench = interpolateWrenchTrajectory(costDesiredTrajectories.desiredTimeTrajectory(),
-                                                        costDesiredTrajectories.desiredStateTrajectory(), observation.time());
-  Eigen::Vector3d zmp = kinematicsInterface.getZMPBaseFrame(observation.state(), interpolatedPose, interpolatedWrench);
-  geometry_msgs::PointStamped zmpMsg;
-  zmpMsg.header = comMsg.header;
-  zmpMsg.point = tf2::toMsg(zmp);
-  zmpPublisher_.publish(zmpMsg);
-}
-
-kindr::HomTransformQuatD AsKinematicSimulation::getEndEffectorPose() {
+kindr::HomTransformQuatD AsKinematicSimulation::getEndEffectorPose()
+{
   {
     boost::shared_lock<boost::shared_mutex> lock(observationMutex_);
     Eigen::Matrix<double, 4, 4> endEffectorToWorldTransform;
@@ -551,32 +554,52 @@ kindr::HomTransformQuatD AsKinematicSimulation::getEndEffectorPose() {
   }
 }
 
+kindr::HomTransformQuatD AsKinematicSimulation::getBasePose()
+{
+  {
+    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);    
+    const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation_.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+    const Eigen::Matrix<double, 3, 1> currentPosition = observation_.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
+
+    return kindr::HomTransformQuatD(kindr::Position3D(currentPosition),
+                                    kindr::RotationQuaternionD(currentRotation));
+  }
+}
+
 std::shared_ptr<VoxbloxCostConfig> AsKinematicSimulation::configureCollisionAvoidance(
-    std::shared_ptr<KinematicsInterfaceAD> kinematicInterface) {
+    std::shared_ptr<KinematicsInterfaceAD> kinematicInterface)
+{
   ros::NodeHandle pNh("~");
   std::shared_ptr<VoxbloxCostConfig> voxbloxCostConfig = nullptr;
 
-  if (pNh.hasParam("collision_points")) {
+  if (pNh.hasParam("collision_points"))
+  {
     perceptive_mpc::PointsOnRobot::points_radii_t pointsAndRadii(8);
     using pair_t = std::pair<double, double>;
 
     XmlRpc::XmlRpcValue collisionPoints;
     pNh.getParam("collision_points", collisionPoints);
-    if (collisionPoints.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+    if (collisionPoints.getType() != XmlRpc::XmlRpcValue::TypeArray)
+    {
       ROS_WARN("collision_points parameter is not of type array.");
       return voxbloxCostConfig;
     }
-    for (int i = 0; i < collisionPoints.size(); i++) {
-      if (collisionPoints.getType() != XmlRpc::XmlRpcValue::TypeArray) {
+    for (int i = 0; i < collisionPoints.size(); i++)
+    {
+      if (collisionPoints.getType() != XmlRpc::XmlRpcValue::TypeArray)
+      {
         ROS_WARN_STREAM("collision_points[" << i << "] parameter is not of type array.");
         return voxbloxCostConfig;
       }
-      for (int j = 0; j < collisionPoints[i].size(); j++) {
-        if (collisionPoints[j].getType() != XmlRpc::XmlRpcValue::TypeArray) {
+      for (int j = 0; j < collisionPoints[i].size(); j++)
+      {
+        if (collisionPoints[j].getType() != XmlRpc::XmlRpcValue::TypeArray)
+        {
           ROS_WARN_STREAM("collision_points[" << i << "][" << j << "] parameter is not of type array.");
           return voxbloxCostConfig;
         }
-        if (collisionPoints[i][j].size() != 2) {
+        if (collisionPoints[i][j].size() != 2)
+        {
           ROS_WARN_STREAM("collision_points[" << i << "][" << j << "] does not have 2 elements.");
           return voxbloxCostConfig;
         }
@@ -592,7 +615,8 @@ std::shared_ptr<VoxbloxCostConfig> AsKinematicSimulation::configureCollisionAvoi
     config.kinematics = kinematicInterface;
     pointsOnRobot_.reset(new perceptive_mpc::PointsOnRobot(config));
 
-    if (pointsOnRobot_->numOfPoints() > 0) {
+    if (pointsOnRobot_->numOfPoints() > 0)
+    {
       voxbloxCostConfig.reset(new VoxbloxCostConfig());
       voxbloxCostConfig->pointsOnRobot = pointsOnRobot_;
 
@@ -600,7 +624,9 @@ std::shared_ptr<VoxbloxCostConfig> AsKinematicSimulation::configureCollisionAvoi
       voxbloxCostConfig->interpolator = esdfCachingServer_->getInterpolator();
 
       pointsOnRobot_->initialize("points_on_robot");
-    } else {
+    }
+    else
+    {
       // if there are no points defined for collision checking, set this pointer to null to disable the visualization
       pointsOnRobot_ = nullptr;
     }

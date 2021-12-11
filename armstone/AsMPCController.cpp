@@ -360,10 +360,11 @@ void AsMPCController::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.clear();
   reference_vector_t reference = reference_vector_t::Zero();
   auto currentEndEffectorPose = getEndEffectorPose();
+  auto currentBasePose = getBasePose();
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
-  reference.tail<Definitions::WRENCH_DIM>().head<3>() = defaultForce_;
-  reference.tail<Definitions::WRENCH_DIM>().tail<3>() = defaultTorque_;
+  reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
   Observation observation;
   {
@@ -379,97 +380,29 @@ void AsMPCController::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
 }
 
-void AsMPCController::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
-{
-  geometry_msgs::Pose currentEndEffectorPose;
-  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);
-
-  perceptive_mpc::WrenchPoseTrajectory wrenchPoseTrajectory;
-  wrenchPoseTrajectory.header.stamp = ros::Time::now();
-  wrenchPoseTrajectory.posesWrenches.resize(2);
-  wrenchPoseTrajectory.posesWrenches[0].header.stamp = wrenchPoseTrajectory.header.stamp;
-  wrenchPoseTrajectory.posesWrenches[0].pose = currentEndEffectorPose;
-  tf2::toMsg(defaultForce_, wrenchPoseTrajectory.posesWrenches[0].wrench.force);
-  tf2::toMsg(defaultTorque_, wrenchPoseTrajectory.posesWrenches[0].wrench.torque);
-
-  wrenchPoseTrajectory.posesWrenches[1].header.stamp = wrenchPoseTrajectory.header.stamp;
-  wrenchPoseTrajectory.posesWrenches[1].pose = msgPtr->pose;
-  tf2::toMsg(defaultForce_, wrenchPoseTrajectory.posesWrenches[1].wrench.force);
-  tf2::toMsg(defaultTorque_, wrenchPoseTrajectory.posesWrenches[1].wrench.torque);
-
-  desiredWrenchPoseTrajectoryCb(wrenchPoseTrajectory);
-}
-
-void AsMPCController::desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory &wrenchPoseTrajectory)
-{
-  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-  costDesiredTrajectories_.clear();
-  int N = wrenchPoseTrajectory.posesWrenches.size();
-  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
-  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
-  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-  kindr::HomTransformQuatD lastPose;
-  for (int i = 0; i < N; i++)
-  {
-    kindr::HomTransformQuatD desiredPose;
-    reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(wrenchPoseTrajectory.posesWrenches[i].pose, desiredPose);
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
-    Eigen::Vector3d force;
-    tf2::fromMsg(wrenchPoseTrajectory.posesWrenches[i].wrench.force, force);
-    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
-    Eigen::Vector3d torque;
-    tf2::fromMsg(wrenchPoseTrajectory.posesWrenches[i].wrench.torque, torque);
-    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
-    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference;
-
-    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
-
-    if (i == 0)
-    {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
-    }
-    else
-    {
-      auto minTimeLinear = (desiredPose.getPosition() - lastPose.getPosition()).norm() / maxLinearVelocity_;
-      auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(lastPose.getRotation())) / maxAngularVelocity_;
-
-      auto lastOriginalTimeStamp = ros::Time(wrenchPoseTrajectory.posesWrenches[i - 1].header.stamp).toSec();
-      auto currentOriginalTimeStamp = ros::Time(wrenchPoseTrajectory.posesWrenches[i].header.stamp).toSec();
-      double originalTimingDiff = currentOriginalTimeStamp - lastOriginalTimeStamp;
-      double segmentDuration = std::max(originalTimingDiff, std::max(minTimeLinear, minTimeAngular));
-
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + segmentDuration;
-    }
-
-    lastPose = desiredPose;
-  }
-}
-
 void AsMPCController::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
 {
+  // USECASE put 0 base pose cost if you are using this
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   int N = taskTrajectory.points.size(); // point count
   costDesiredTrajectories_.desiredStateTrajectory().resize(N);
   costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
   costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-
-  kindr::HomTransformQuatD lastPose; // setup temp
+  
   for (int i = 0; i < N; i++)
   {
-    kindr::HomTransformQuatD desiredPose;
+    kindr::HomTransformQuatD desiredEEPose;
+    kindr::HomTransformQuatD desiredBPose;
     reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].pose, desiredPose); // to kindr pose
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
-    Eigen::Vector3d force;
-    reference.tail<Definitions::WRENCH_DIM>().head<3>() = force;
-    Eigen::Vector3d torque;
-    reference.tail<Definitions::WRENCH_DIM>().tail<3>() = torque;
-    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose); // to kindr pose
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].base_pose, desiredBPose); // to kindr pose
+    reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
+    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
+    reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+    reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
 
+    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
     costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
 
     // Deal with feasibility. This should be a check rather than retime.
@@ -479,13 +412,50 @@ void AsMPCController::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskT
     }
     else
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[i - 1] + taskTrajectory.points[i].time_from_start.toSec();
-
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
     }
-
-    lastPose = desiredPose;    
+    
   }
+}
 
+void AsMPCController::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
+{
+  // USECASE put 0 base pose cost if you are using this
+  geometry_msgs::Pose currentEndEffectorPose;
+  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);  
+  kindr::HomTransformQuatD desiredPose;
+  kindr::HomTransformQuatD currentPose;
+  kindr_ros::convertFromRosGeometryMsg(msgPtr->pose, desiredPose);
+  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);  
+
+  boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+  costDesiredTrajectories_.clear();
+  int N = 2;
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+
+  reference_vector_t reference0;
+  reference0.head<Definitions::POSE_DIM>().head<4>() = currentPose.getRotation().toImplementation().coeffs();
+  reference0.head<Definitions::POSE_DIM>().tail<3>() = currentPose.getPosition().toImplementation();
+
+  reference_vector_t reference1;
+  reference1.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
+  reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+
+  costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
+  costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
+  costDesiredTrajectories_.desiredInputTrajectory()[0] = MpcInterface::input_vector_t::Zero();
+  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();  
+
+  auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
+  auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
+
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;  
+
+  costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
+  costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
+  
 }
 
 void AsMPCController::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
@@ -520,7 +490,8 @@ void AsMPCController::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPt
     observation_.state(12) = msgPtr->position[9];
     // observation_.time() = msgPtr->header.stamp.toSec() -initialTime_;
     // observation_.time() = msgPtr->header.stamp.toSec();
-    observation_.time() = ros::Time::now().toSec();;
+    observation_.time() = ros::Time::now().toSec();
+    ;
   }
 
   firstObservationUpdated_ = true;
@@ -560,6 +531,18 @@ kindr::HomTransformQuatD AsMPCController::getEndEffectorPose()
     Eigen::Quaterniond eigenBaseRotation(endEffectorToWorldTransform.topLeftCorner<3, 3>());
     return kindr::HomTransformQuatD(kindr::Position3D(endEffectorToWorldTransform.topRightCorner<3, 1>()),
                                     kindr::RotationQuaternionD(eigenBaseRotation));
+  }
+}
+
+kindr::HomTransformQuatD AsMPCController::getBasePose()
+{
+  {
+    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);    
+    const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation_.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
+    const Eigen::Matrix<double, 3, 1> currentPosition = observation_.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
+
+    return kindr::HomTransformQuatD(kindr::Position3D(currentPosition),
+                                    kindr::RotationQuaternionD(currentRotation));
   }
 }
 

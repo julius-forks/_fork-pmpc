@@ -115,14 +115,15 @@ model_settings
 }
 
 ; initial configuration
+; Only used in sim
 initialState
 {
   (0,0)  0.0      ; qx
   (1,0)  0.0      ; qy
-  (2,0)  0.0      ; qz
-  (3,0)  1.0      ; qw
-  (4,0)  0.0      ; x
-  (5,0)  0.0      ; y
+  (2,0)  -0.921248      ; qz
+  (3,0)  0.382373      ; qw
+  (4,0)  0.5      ; x
+  (5,0)  0.5      ; y
   (6,0)  0.0      ; z
   (7,0)  1.0      ; arm_1
   (8,0)  -1     ; arm_2
@@ -132,7 +133,7 @@ initialState
   (12,0)  0.0     ; arm_6
 }
 
-ee_tracking_task
+base_ee_tracking_task
 {
   ; state weight matrix
   Q
@@ -141,10 +142,14 @@ ee_tracking_task
 
     (0,0) 10.0  ; x
     (1,1) 10.0  ; y
-    (2,2) 100.0  ; z
+    (2,2) 10.0  ; z
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
+    (6,6) 0.5  ; bx
+    (7,7) 0.5  ; by
+    (8,8) 0.5  ; byaw
+    
   }
 
   ; control weight matrix
@@ -152,9 +157,9 @@ ee_tracking_task
   {
     scaling 1e+0
 
-    (0,0) 100.0  ; base_drive x
-    (1,1) 100.0  ; base_drive y
-    (2,2) 250.0  ; base_turn
+    (0,0) 10.0  ; base_drive x
+    (1,1) 10.0  ; base_drive y
+    (2,2) 10.0  ; base_turn
     (3,3) 1.0  ; arm_1
     (4,4) 1.0  ; arm_2
     (5,5) 1.0  ; arm_3
@@ -168,12 +173,15 @@ ee_tracking_task
   {
     scaling 0e+1
 
-    (0,0) 10.0  ; x
-    (1,1) 10.0  ; y
-    (2,2) 10.0  ; z
-    (3,3) 1.0  ; roll
-    (4,4) 1.0  ; pitch
-    (5,5) 1.0  ; yaw
+    (0,0) 0.0  ; x
+    (1,1) 0.0  ; y
+    (2,2) 0.0  ; z
+    (3,3) 0.0  ; roll
+    (4,4) 0.0  ; pitch
+    (5,5) 0.0  ; yaw
+    (6,6) 0.0  ; bx
+    (7,7) 0.0  ; by
+    (8,8) 0.0  ; byaw
   }
 }
 

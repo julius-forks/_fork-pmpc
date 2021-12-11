@@ -35,7 +35,7 @@
 #include <perceptive_mpc/costs/PointsOnRobot.h>
 
 #include <perceptive_mpc/Definitions.h>
-#include <perceptive_mpc/WrenchPoseTrajectory.h>
+
 #include <m3dp_msgs/TaskTrajectory.h>
 
 // ocs2
@@ -140,6 +140,7 @@ class AsMPCController {
 
   // compute the current end effector Pose on the base of the latest observation
   kindr::HomTransformQuatD getEndEffectorPose();
+  kindr::HomTransformQuatD getBasePose();
 
   // parse all ros parameters
   void parseParameters();
@@ -148,7 +149,7 @@ class AsMPCController {
 
   // update the desired end effector pose on ros msg
   void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
-  void desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory);
+  
   void taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory& taskTrajectory);
   
   // update joint_state

@@ -35,7 +35,6 @@
 #include <perceptive_mpc/costs/PointsOnRobot.h>
 
 #include <perceptive_mpc/Definitions.h>
-#include <perceptive_mpc/WrenchPoseTrajectory.h>
 #include <m3dp_msgs/TaskTrajectory.h>
 
 // ocs2
@@ -113,7 +112,7 @@ class AsKinematicSimulation {
   ros::Publisher comPublisher_;
   ros::Publisher zmpPublisher_;
   ros::Subscriber desiredEndEffectorPoseSubscriber_;
-  ros::Subscriber desiredEndEffectorWrenchPoseTrajectorySubscriber_;
+  
   tf::TransformBroadcaster tfBroadcaster_;
   ros::Subscriber taskTrajectorySubscriber_;
 
@@ -129,6 +128,7 @@ class AsKinematicSimulation {
 
   // compute the current end effector Pose on the base of the latest observation
   kindr::HomTransformQuatD getEndEffectorPose();
+  kindr::HomTransformQuatD getBasePose();
 
   // publish the transform from odom to the robot base
   void publishBaseTransform(const Observation& observation);
@@ -138,8 +138,7 @@ class AsKinematicSimulation {
 
   // publish the current end effector pose to ros
   void publishEndEffectorPose();
-
-  void publishZmp(const Observation & observation, const ocs2::CostDesiredTrajectories& costDesiredTrajectories);
+  
 
     // parse all ros parameters
   void parseParameters();
@@ -150,7 +149,7 @@ class AsKinematicSimulation {
   void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
   void taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory& taskTrajectory);
 
-  void desiredWrenchPoseTrajectoryCb(const perceptive_mpc::WrenchPoseTrajectory& wrenchPoseTrajectory);
+  
 
   // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
   void setCurrentObservation(const Observation& observation);
