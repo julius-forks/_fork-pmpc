@@ -64,19 +64,20 @@
 
 namespace perceptive_mpc {
 
-class AsMPCController {
+class AsPMPC {
  public:
   typedef ocs2::SystemObservation<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> Observation;
   typedef ocs2::MPC_MRT_Interface<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> MpcInterface;
   typedef MpcInterface::input_vector_t InputVector;
   using reference_vector_t = Eigen::Matrix<double, Definitions::REFERENCE_DIM, 1>;
 
-  explicit AsMPCController(const ros::NodeHandle& nh = ros::NodeHandle());
+  explicit AsPMPC(const ros::NodeHandle& nh = ros::NodeHandle());
 
   bool run();
 
  protected:
   std::string mpcTaskFile_;
+  std::string packagePath_;  
   std::unique_ptr<perceptive_mpc::AsPerceptiveMpcInterface> pmpcInterface_;
   std::shared_ptr<MpcInterface> mpcInterface_;
   std::shared_ptr<PointsOnRobot> pointsOnRobot_;

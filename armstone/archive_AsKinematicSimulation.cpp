@@ -57,8 +57,10 @@ bool AsKinematicSimulation::run()
 
   AsPerceptiveMpcInterfaceConfig config;
   config.taskFileName = mpcTaskFile_;
+  config.packagePath = packagePath_;
   config.kinematicsInterface = std::make_shared<asArmKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
   config.voxbloxConfig = configureCollisionAvoidance(config.kinematicsInterface);
+
   ocs2Interface_.reset(new AsPerceptiveMpcInterface(config));
   mpcInterface_ = std::make_shared<MpcInterface>(ocs2Interface_->getMpc());
   mpcInterface_->reset();
@@ -175,8 +177,8 @@ void AsKinematicSimulation::parseParameters()
 {
   ros::NodeHandle pNh("~");
 
-  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
-
+  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file","task.info");
+  packagePath_ = pNh.param<std::string>("package_path","set_path_here");
   mpcUpdateFrequency_ = pNh.param<double>("mpc_update_frequency", 100);
   tfUpdateFrequency_ = pNh.param<double>("tf_update_frequency", 10);
   maxLinearVelocity_ = pNh.param<double>("max_linear_velocity", 1.0);

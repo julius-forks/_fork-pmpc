@@ -118,34 +118,15 @@ target_link_libraries(${PROJECT_NAME}_armstone
 
 ###########################
 
-add_executable(as_mpc_controller_node
-        armstone/as_mpc_controller_node.cpp
-        armstone/AsMPCController.cpp)
+add_executable(as_pmpc_node
+        armstone/as_pmpc_node.cpp
+        armstone/AsPMPC.cpp)
 
-add_dependencies(as_mpc_controller_node
+add_dependencies(as_pmpc_node
         ${${PROJECT_NAME}_EXPORTED_TARGETS}
         ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(as_mpc_controller_node
-        ${PROJECT_NAME}
-        ${PROJECT_NAME}_explicit_instantiations
-        ${PROJECT_NAME}_armstone
-        ${catkin_LIBRARIES}
-        ${Boost_LIBRARIES}
-        dl
-        )
-
-###########################
-
-add_executable(as_mpc_simulation_node
-        armstone/as_kinematic_simulation_node.cpp
-        armstone/AsKinematicSimulation.cpp)
-
-add_dependencies(as_mpc_simulation_node
-        ${${PROJECT_NAME}_EXPORTED_TARGETS}
-        ${catkin_EXPORTED_TARGETS})
-
-target_link_libraries(as_mpc_simulation_node
+target_link_libraries(as_pmpc_node
         ${PROJECT_NAME}
         ${PROJECT_NAME}_explicit_instantiations
         ${PROJECT_NAME}_armstone

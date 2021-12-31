@@ -29,13 +29,13 @@
 
 
 #include <ros/ros.h>
-#include "armstone/AsMPCController.h"
+#include "armstone/AsPMPC.h"
 
 using namespace perceptive_mpc;
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "as_mpc_controller");
-  AsMPCController asmpc;
+  ros::init(argc, argv, "as_pmpc");
+  AsPMPC asmpc;
   asmpc.run();
   return 0;
 }

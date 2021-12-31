@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+
+  <arg name="KINEMATIC_SIMULATION" default="true" />
+  <arg name="COLLISION_AVOIDANCE" default="false" />
+  <arg name="INTERACTIVE" default="true" />
+
+  <!--     Name of the task file which defines the mpc problem settings-->
+  <arg name="mpc_task_file" default="as_task.info" />
+
+  <node pkg="perceptive_mpc" name="as_pmpc" type="as_pmpc_node" output="screen">
+    <!-- Modes -->
+    <param name="kinematic_simulation_mode" value="$(arg KINEMATIC_SIMULATION)" />
+    <param name="collision_avoidance_mode" value="$(arg COLLISION_AVOIDANCE)" />
+    <!-- Params -->
+    <param name="mpc_task_file" value="$(arg mpc_task_file)" />
+    <param name="package_path" value="$(find perceptive_mpc)" />
+    <param name="end_effector_frame" value="extruder_ee" />
+    <rosparam file="$(find perceptive_mpc)/config/kinematic_simulation_parameters.yaml" />
+    <!-- Remaps -->
+    <remap from="armjointvelcmd_topic" to="/as_control/xarm_joint_velocity_controller/command" />
+    <remap from="basetwistcmd_topic" to="/as_control/mpc_base_cmd_vel" />
+    <remap from="joint_states" to="/as_control/joint_states" />
+  </node>
+
+  <node if="$(arg COLLISION_AVOIDANCE)" name="voxblox_node" pkg="voxblox_ros" type="esdf_server" output="log" args="" clear_params="true">
+    <remap from="pointcloud" to="/self_filtered_pointcloud" />
+    <remap from="voxblox_node/esdf_map_out" to="esdf_map" />
+    <param name="publish_esdf_map" value="true" />
+    <param name="publish_pointclouds" value="true" />
+    <param name="use_tf_transforms" value="true" />
+    <param name="update_mesh_every_n_sec" value="1.0" />
+    <param name="clear_sphere_for_planning" value="false" />
+    <rosparam file="$(find perceptive_mpc)/config/voxblox.yaml" />
+  </node>
+
+  <node if="$(arg INTERACTIVE)" name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen" />
+
+</launch>

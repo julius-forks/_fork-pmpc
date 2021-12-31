@@ -63,6 +63,7 @@ class VoxbloxCostConfig;
 
 struct AsPerceptiveMpcInterfaceConfig {
   std::string taskFileName;
+  std::string packagePath;
   std::shared_ptr<VoxbloxCostConfig> voxbloxConfig = nullptr;
   std::shared_ptr<KinematicsInterfaceAD> kinematicsInterface;
 };

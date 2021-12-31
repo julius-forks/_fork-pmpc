@@ -73,6 +73,7 @@ class AsKinematicSimulation {
 
  protected:
   std::string mpcTaskFile_;
+  std::string packagePath_;  
   std::unique_ptr<perceptive_mpc::AsPerceptiveMpcInterface> ocs2Interface_;
   std::shared_ptr<MpcInterface> mpcInterface_;
   std::shared_ptr<PointsOnRobot> pointsOnRobot_;
