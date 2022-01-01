@@ -46,8 +46,13 @@ using namespace perceptive_mpc;
 AsPMPC::AsPMPC(const ros::NodeHandle &nh)
     : nh_(nh), mpcUpdateFailed_(false), planAvailable_(false), kinematicInterfaceConfig_() {}
 
+//TODO:
+// Check old joint state and stop if old.
+// interactive  goal pub  full on sim., arm only  in real
+
 bool AsPMPC::run()
 {
+
   ROS_INFO("Loading Params");
   parseParameters();
   loadTransforms();
@@ -56,8 +61,8 @@ bool AsPMPC::run()
   ROS_INFO("Initialise ROS API");
   initialTime_ = ros::Time::now().toSec();
   tfListener_ = new tf2_ros::TransformListener(tfBuffer_, true);
-  goalPoseSubscriber_ = nh_.subscribe("/perceptive_mpc/desired_end_effector_pose", 1, &AsPMPC::desiredEndEffectorPoseCb, this);
-  taskTrajectorySubscriber_ = nh_.subscribe("/print_tasker/trajectory_cmd", 1, &AsPMPC::taskTrajectoryCmdCb, this);
+  goalPoseSubscriber_ = nh_.subscribe("desired_end_effector_pose_topic", 1, &AsPMPC::desiredEndEffectorPoseCb, this); // For motion of arm only.
+  taskTrajectorySubscriber_ = nh_.subscribe("trajectory_cmd_topic", 1, &AsPMPC::taskTrajectoryCmdCb, this);
   armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
   baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
 
@@ -73,22 +78,26 @@ bool AsPMPC::run()
   mpcInterface_->reset();
 
   //Setting initial state
-  if (sim_mode_){
+  if (sim_mode_)
+  {
     observation_.state() = pmpcInterface_->getInitialState();
-  }else{
-      firstObservationUpdated_ = false;
-      jointStatesSubscriber_ =
-      nh_.subscribe("joint_states", 1, &AsPMPC::jointStatesCb, this);
-      ROS_INFO("Waiting for obeservation to be updated");
-      ros::Rate _r(10); // 10 hz      
-      while (ros::ok() )
+  }
+  else
+  {
+    firstObservationUpdated_ = false;
+    jointStatesSubscriber_ =
+        nh_.subscribe("joint_states", 1, &AsPMPC::jointStatesCb, this);
+    ROS_INFO("Waiting for obeservation to be updated");
+    ros::Rate _r(10); // 10 hz
+    while (ros::ok())
+    {
+      if (jointStatesSubscriber_.getNumPublishers() == 1 && !firstObservationUpdated_)
       {
-        if(jointStatesSubscriber_.getNumPublishers() == 1 && !firstObservationUpdated_ ){
-          break;
-        }        
-        ros::spinOnce();
-        _r.sleep();
+        break;
       }
+      ros::spinOnce();
+      _r.sleep();
+    }
   }
   //observation_ should now be updated by the joint cb or set via initial
   ROS_INFO("Observation was updated; Setting up MPC loops");
@@ -110,65 +119,12 @@ bool AsPMPC::run()
   ros::spin();
   trackerWorker.join();
   mpcUpdateWorker.join();
-  if(sim_mode_){
-    std::thread tfUpdateWorker(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));    
+  if (sim_mode_)
+  {
+    std::thread tfUpdateWorker(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));
     tfUpdateWorker.join();
-  }  
+  }
   return true;
-}
-
-void AsPMPC::loadTransforms()
-{
-
-  asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
-
-  {
-    geometry_msgs::TransformStamped transformStamped;
-    try
-    {
-      transformStamped = tfBuffer_.lookupTransform(base_frame_, kinematics.armMountLinkName(), ros::Time(0), ros::Duration(1.0));
-    }
-    catch (tf2::TransformException &ex)
-    {
-      ROS_ERROR("%s", ex.what());
-      throw;
-    }
-    Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,
-                            transformStamped.transform.rotation.y, transformStamped.transform.rotation.z);
-
-    kinematicInterfaceConfig_.transformBase_X_ArmMount = Eigen::Matrix4d::Identity();
-    kinematicInterfaceConfig_.transformBase_X_ArmMount.block<3, 3>(0, 0) = quat.toRotationMatrix();
-
-    kinematicInterfaceConfig_.transformBase_X_ArmMount(0, 3) = transformStamped.transform.translation.x;
-    kinematicInterfaceConfig_.transformBase_X_ArmMount(1, 3) = transformStamped.transform.translation.y;
-    kinematicInterfaceConfig_.transformBase_X_ArmMount(2, 3) = transformStamped.transform.translation.z;
-    ROS_INFO_STREAM("baseToArmMount_: " << std::endl
-                                        << kinematicInterfaceConfig_.transformBase_X_ArmMount);
-  }
-
-  {
-    geometry_msgs::TransformStamped transformStamped;
-    try
-    {
-      transformStamped = tfBuffer_.lookupTransform(kinematics.toolMountLinkName(), end_effector_frame_, ros::Time(0), ros::Duration(1.0));
-    }
-    catch (tf2::TransformException &ex)
-    {
-      ROS_ERROR("%s", ex.what());
-      throw;
-    }
-    Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,
-                            transformStamped.transform.rotation.y, transformStamped.transform.rotation.z);
-
-    kinematicInterfaceConfig_.transformToolMount_X_Endeffector = Eigen::Matrix4d::Identity();
-    kinematicInterfaceConfig_.transformToolMount_X_Endeffector.block<3, 3>(0, 0) = quat.toRotationMatrix();
-
-    kinematicInterfaceConfig_.transformToolMount_X_Endeffector(0, 3) = transformStamped.transform.translation.x;
-    kinematicInterfaceConfig_.transformToolMount_X_Endeffector(1, 3) = transformStamped.transform.translation.y;
-    kinematicInterfaceConfig_.transformToolMount_X_Endeffector(2, 3) = transformStamped.transform.translation.z;
-    ROS_INFO_STREAM("wrist2ToEETransform_: " << std::endl
-                                             << kinematicInterfaceConfig_.transformToolMount_X_Endeffector);
-  }
 }
 
 void AsPMPC::parseParameters()
@@ -179,18 +135,18 @@ void AsPMPC::parseParameters()
   auto _v = pNh.param<std::vector<double>>("base_com", {0, 0, 0});
   kinematicInterfaceConfig_.baseCOM = Eigen::Vector3d(_v[0], _v[1], _v[2]);
   // Modes:
-  sim_mode_ = pNh.param<bool>("kinematic_simulation_mode", true);//TODO add
-  collision_mode_ = pNh.param<bool>("collision_avoidance_mode", false);//TODO add
+  sim_mode_ = pNh.param<bool>("kinematic_simulation_mode", true);
+  collision_mode_ = pNh.param<bool>("collision_avoidance_mode", false);
   // Frames
   end_effector_frame_ = pNh.param<std::string>("end_effector_frame", "ee");
-  base_frame_ = pNh.param<std::string>("base_frame", "base_link");
+  base_frame_ = pNh.param<std::string>("base_frame", "base_link_footprint");
   odom_frame_ = pNh.param<std::string>("odom_frame", "odom");
   // Files
-  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file","task.info");
-  packagePath_ = pNh.param<std::string>("package_path","set_path_here");
+  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
+  packagePath_ = pNh.param<std::string>("package_path", "set_path_here");
   // MPC params
   mpcUpdateFrequency_ = pNh.param<double>("mpc_update_frequency", 100);
-  tfUpdateFrequency_ = pNh.param<double>("tf_update_frequency", 10);//TODO add
+  tfUpdateFrequency_ = pNh.param<double>("tf_update_frequency", 10);
   maxLinearVelocity_ = pNh.param<double>("max_linear_velocity", 1.0);
   maxAngularVelocity_ = pNh.param<double>("max_angular_velocity", 1.0);
   controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 100);
@@ -221,17 +177,19 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
       // MAKE A COPY OF OBSERVATION
       Observation observation;
       {
-        
-        if (sim_mode_) {
-          boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_);//write mutex
+
+        if (sim_mode_)
+        {
+          boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex
           observation_.state() = optimalState_;
           observation_.time() = ros::Time::now().toSec();
           observation = observation_;
-        }else{
-          boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);//Read mutex
-          observation = observation_;// sets current observation to last one received
         }
-        
+        else
+        {
+          boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_); //Read mutex
+          observation = observation_;                                           // sets current observation to last one received
+        }
       }
 
       MpcInterface::input_vector_t controlInput;
@@ -239,12 +197,15 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
       size_t subsystem;
       try
       {
-        if (sim_mode_) {
+        if (sim_mode_)
+        {
           mpcInterface_->updatePolicy();
-          mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);                      
-        }else{
+          mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
+        }
+        else
+        {
           mpcInterface_->updatePolicy();
-          mpcInterface_->evaluatePolicy(ros::Time::now().toSec(), observation.state(), optimalState, controlInput, subsystem);          
+          mpcInterface_->evaluatePolicy(ros::Time::now().toSec(), observation.state(), optimalState, controlInput, subsystem);
           pubControlInput(controlInput);
         }
       }
@@ -303,7 +264,7 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
     try
     {
       {
-       
+
         boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
         mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);
         ROS_INFO_STREAM_THROTTLE(1.0, std::endl
@@ -348,7 +309,7 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
   return true;
 }
 
-bool AsPMPC::tfUpdate(ros::Rate rate)//TODO add
+bool AsPMPC::tfUpdate(ros::Rate rate)
 {
   while (ros::ok())
   {
@@ -359,9 +320,9 @@ bool AsPMPC::tfUpdate(ros::Rate rate)//TODO add
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
         currentObservation = observation_;
       }
-      publishBaseTransform(currentObservation);//TODO add these
+      publishBaseTransform(currentObservation);
       publishArmState(currentObservation);
-      publishEndEffectorPose();//TODO whats this?
+      publishEndEffectorPose();
       if (pointsOnRobot_)
       {
         pointsOnRobotPublisher_.publish(pointsOnRobot_->getVisualization(currentObservation.state()));
@@ -372,8 +333,6 @@ bool AsPMPC::tfUpdate(ros::Rate rate)//TODO add
       //   boost::shared_lock<boost::shared_mutex> lock(costDesiredTrajectoryMutex_);
       //   costDesiredTrajectories = costDesiredTrajectories_;
       // }
-
-      
     }
     catch (const std::runtime_error &ex)
     {
@@ -426,7 +385,7 @@ void AsPMPC::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.desiredStateTrajectory().push_back(reference);
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
-  costDesiredTrajectories_.display();//TODO Check this
+  costDesiredTrajectories_.display();
 }
 
 void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
@@ -438,13 +397,13 @@ void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory
   costDesiredTrajectories_.desiredStateTrajectory().resize(N);
   costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
   costDesiredTrajectories_.desiredInputTrajectory().resize(N);
-  
+
   for (int i = 0; i < N; i++)
   {
     kindr::HomTransformQuatD desiredEEPose;
     kindr::HomTransformQuatD desiredBPose;
     reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose); // to kindr pose
+    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose);  // to kindr pose
     kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].base_pose, desiredBPose); // to kindr pose
     reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
     reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
@@ -463,7 +422,6 @@ void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory
     {
       costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
     }
-    
   }
 }
 
@@ -471,11 +429,11 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
 {
   // USECASE put 0 base pose cost if you are using this
   geometry_msgs::Pose currentEndEffectorPose;
-  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);  
+  kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);
   kindr::HomTransformQuatD desiredPose;
   kindr::HomTransformQuatD currentPose;
   kindr_ros::convertFromRosGeometryMsg(msgPtr->pose, desiredPose);
-  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);  
+  kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);
 
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
@@ -495,16 +453,15 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
   costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
   costDesiredTrajectories_.desiredInputTrajectory()[0] = MpcInterface::input_vector_t::Zero();
-  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();  
+  costDesiredTrajectories_.desiredInputTrajectory()[1] = MpcInterface::input_vector_t::Zero();
 
   auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
   auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
 
-  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;  
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;
 
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
-  
 }
 
 void AsPMPC::publishBaseTransform(const Observation &observation)
@@ -577,8 +534,6 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
   {
     ROS_WARN_STREAM_THROTTLE(1.0, "Error finding odom-->baselink frame transform");
     return;
-    // ROS_ERROR("%s", ex.what());
-    // throw;
   }
 
   {
@@ -597,7 +552,7 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
     observation_.state(11) = msgPtr->position[8];
     observation_.state(12) = msgPtr->position[9];
     // observation_.time() = msgPtr->header.stamp.toSec() -initialTime_;
-    // observation_.time() = msgPtr->header.stamp.toSec();
+    // observation_.time() = msgPtr->header.stamp.toSec(); //TODO delet when this is clear
     observation_.time() = ros::Time::now().toSec();
     ;
   }
@@ -645,7 +600,7 @@ kindr::HomTransformQuatD AsPMPC::getEndEffectorPose()
 kindr::HomTransformQuatD AsPMPC::getBasePose()
 {
   {
-    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);    
+    boost::shared_lock<boost::shared_mutex> lock(observationMutex_);
     const Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation_.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
     const Eigen::Matrix<double, 3, 1> currentPosition = observation_.state().head<Definitions::BASE_STATE_DIM_>().tail<3>();
 
@@ -720,4 +675,75 @@ std::shared_ptr<VoxbloxCostConfig> AsPMPC::configureCollisionAvoidance(
     }
   }
   return voxbloxCostConfig;
+}
+
+void AsPMPC::loadTransforms()
+{
+
+  asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
+
+  ROS_INFO("Waiting for expected tf frames");
+
+  ros::Rate _r(10); // 10 hz
+  while (ros::ok())
+  {
+    ros::spinOnce();
+    _r.sleep();
+
+    {
+      geometry_msgs::TransformStamped transformStamped;
+      try
+      {
+        std::string _a=tfBuffer_.allFramesAsString();
+        ROS_INFO_STREAM(_a << std::endl);
+        // ROS_ERROR_THROTTLE(1.0,_a);
+        // transformStamped = tfBuffer_.lookupTransform("base_link", "xarm_mount", ros::Time(0));
+        transformStamped = tfBuffer_.lookupTransform(base_frame_, kinematics.armMountLinkName(), ros::Time(0));
+      }
+      catch (tf2::TransformException &ex)
+      {
+        // ROS_ERROR_THROTTLE(1.0, base_frame_);
+        // ROS_ERROR_THROTTLE(1.0, kinematics.armMountLinkName());
+        ROS_ERROR_THROTTLE(1.0,"%s", ex.what());
+        continue;
+      }
+      Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,
+                              transformStamped.transform.rotation.y, transformStamped.transform.rotation.z);
+
+      kinematicInterfaceConfig_.transformBase_X_ArmMount = Eigen::Matrix4d::Identity();
+      kinematicInterfaceConfig_.transformBase_X_ArmMount.block<3, 3>(0, 0) = quat.toRotationMatrix();
+
+      kinematicInterfaceConfig_.transformBase_X_ArmMount(0, 3) = transformStamped.transform.translation.x;
+      kinematicInterfaceConfig_.transformBase_X_ArmMount(1, 3) = transformStamped.transform.translation.y;
+      kinematicInterfaceConfig_.transformBase_X_ArmMount(2, 3) = transformStamped.transform.translation.z;
+      ROS_INFO_STREAM("baseToArmMount_: " << std::endl
+                                          << kinematicInterfaceConfig_.transformBase_X_ArmMount);
+    }
+
+    {
+      geometry_msgs::TransformStamped transformStamped;
+      try
+      {
+        transformStamped = tfBuffer_.lookupTransform(kinematics.toolMountLinkName(), end_effector_frame_, ros::Time(0));
+      }
+      catch (tf2::TransformException &ex)
+      {
+        ROS_ERROR_THROTTLE(1.0,"%s", ex.what());
+        continue;
+      }
+      Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,
+                              transformStamped.transform.rotation.y, transformStamped.transform.rotation.z);
+
+      kinematicInterfaceConfig_.transformToolMount_X_Endeffector = Eigen::Matrix4d::Identity();
+      kinematicInterfaceConfig_.transformToolMount_X_Endeffector.block<3, 3>(0, 0) = quat.toRotationMatrix();
+
+      kinematicInterfaceConfig_.transformToolMount_X_Endeffector(0, 3) = transformStamped.transform.translation.x;
+      kinematicInterfaceConfig_.transformToolMount_X_Endeffector(1, 3) = transformStamped.transform.translation.y;
+      kinematicInterfaceConfig_.transformToolMount_X_Endeffector(2, 3) = transformStamped.transform.translation.z;
+      ROS_INFO_STREAM("wrist2ToEETransform_: " << std::endl
+                                               << kinematicInterfaceConfig_.transformToolMount_X_Endeffector);
+    }
+    ROS_INFO("Frames found");
+    break;
+  }
 }

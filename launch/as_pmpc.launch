@@ -36,4 +36,22 @@
 
   <node if="$(arg INTERACTIVE)" name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen" />
 
+  <!-- SIM group -->
+  <group if="$(arg KINEMATIC_SIMULATION)" ns="/">   
+    <param name="robot_description" command="$(find xacro)/xacro  '$(find as_description)/robots/as.xacro'" />
+
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+        <param name="publish_frequency" value="100"/>
+    </node>
+
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+      <param name="use_gui" value="false" />
+      <param name="rate" value="50" />
+      <rosparam param="source_list">[/as_control/joint_states]</rosparam>
+    </node>
+    
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find as_description)/rviz/as.rviz" />
+
+  </group>>
+
 </launch>

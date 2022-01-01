@@ -89,8 +89,10 @@ class AsPMPC {
   std::string end_effector_frame_;
   std::string base_frame_;
   std::string odom_frame_;
+  bool sim_mode_;
+  bool collision_mode_;
   double mpcUpdateFrequency_;
-  double rosPublishFrequency_;
+  double tfUpdateFrequency_;
   double controlLoopFrequency_;
   double maxLinearVelocity_;
   double maxAngularVelocity_;
@@ -125,6 +127,10 @@ class AsPMPC {
   ros::Subscriber taskTrajectorySubscriber_;
   ros::Publisher armJointVelPub_;
   ros::Publisher baseTwistPub_;   
+  ros::Publisher pointsOnRobotPublisher_;
+  ros::Publisher armStatePublisher_;
+  ros::Publisher endEffectorPosePublisher_;
+  
   tf::TransformBroadcaster tfBroadcaster_;
   tf2_ros::Buffer tfBuffer_;
   tf2_ros::TransformListener* tfListener_;
@@ -138,6 +144,9 @@ class AsPMPC {
 
   // thread 2 is the mpc solver
   bool mpcUpdate(ros::Rate rate);
+
+  // thread 3  for sim tf publish
+  bool tfUpdate(ros::Rate rate);
 
   // compute the current end effector Pose on the base of the latest observation
   kindr::HomTransformQuatD getEndEffectorPose();
@@ -163,7 +172,15 @@ class AsPMPC {
 
   void loadTransforms();
 
-  
+  // publish the transform from odom to the robot base
+  void publishBaseTransform(const Observation& observation);
+
+  // publish the joint state message of the arm state
+  void publishArmState(const Observation& observation);
+
+  // publish the current end effector pose to ros
+  void publishEndEffectorPose();
+    
   void initializeCostDesiredTrajectory();
 };
 }  // namespace perceptive_mpc
