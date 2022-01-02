@@ -49,8 +49,8 @@
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
 #include <std_srvs/Empty.h>
-#include <tf/tf.h>
-#include <tf/transform_broadcaster.h>
+
+#include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
 #include <atomic>
@@ -76,8 +76,7 @@ class AsPMPC {
   bool run();
 
  protected:
-  std::string mpcTaskFile_;
-  std::string packagePath_;  
+  std::string mpcTaskFile_;  
   std::unique_ptr<perceptive_mpc::AsPerceptiveMpcInterface> pmpcInterface_;
   std::shared_ptr<MpcInterface> mpcInterface_;
   std::shared_ptr<PointsOnRobot> pointsOnRobot_;
@@ -131,7 +130,7 @@ class AsPMPC {
   ros::Publisher armStatePublisher_;
   ros::Publisher endEffectorPosePublisher_;
   
-  tf::TransformBroadcaster tfBroadcaster_;
+  tf2_ros::TransformBroadcaster tfBroadcaster_;
   tf2_ros::Buffer tfBuffer_;
   tf2_ros::TransformListener* tfListener_;
   

@@ -30,11 +30,13 @@
 
 #include <ros/ros.h>
 #include "armstone/AsPMPC.h"
+#include <ros/package.h>
 
 using namespace perceptive_mpc;
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "as_pmpc");
+  std::string packagePath = ros::package::getPath("perceptive_mpc");
   AsPMPC asmpc;
   asmpc.run();
   return 0;

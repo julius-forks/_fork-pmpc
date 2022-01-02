@@ -14,13 +14,27 @@
     <param name="collision_avoidance_mode" value="$(arg COLLISION_AVOIDANCE)" />
     <!-- Params -->
     <param name="mpc_task_file" value="$(arg mpc_task_file)" />
-    <param name="package_path" value="$(find perceptive_mpc)" />
+    <!--  -->
+    <param name="base_frame" value="base_link_footprint" />
+    <param name="odom_frame" value="odom" />
     <param name="end_effector_frame" value="extruder_ee" />
+    <!--  -->
+    <param name="base_com" value="[0,0,0.086]" />
+    <param name="base_mass" value="35" />
+    <!--  -->
+    <param name="mpc_update_frequency" value="100" />
+    <param name="tf_update_frequency" value="20" />
+    <param name="max_linear_velocity" value="1.0" />
+    <param name="max_angular_velocity" value="1.0" />
+    <param name="control_loop_frequency" value="50" />
+    <!--  -->
     <rosparam file="$(find perceptive_mpc)/config/kinematic_simulation_parameters.yaml" />
     <!-- Remaps -->
+    <remap from="desired_end_effector_pose_topic" to="des_pose_cmd" />
+    <remap from="trajectory_cmd_topic" to="des_traj_cmd" />
     <remap from="armjointvelcmd_topic" to="/as_control/xarm_joint_velocity_controller/command" />
     <remap from="basetwistcmd_topic" to="/as_control/mpc_base_cmd_vel" />
-    <remap from="joint_states" to="/as_control/joint_states" />
+    <remap from="joint_states" to="/as_control/joint_states" />    
   </node>
 
   <node if="$(arg COLLISION_AVOIDANCE)" name="voxblox_node" pkg="voxblox_ros" type="esdf_server" output="log" args="" clear_params="true">
@@ -34,14 +48,18 @@
     <rosparam file="$(find perceptive_mpc)/config/voxblox.yaml" />
   </node>
 
-  <node if="$(arg INTERACTIVE)" name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen" />
-
   <!-- SIM group -->
-  <group if="$(arg KINEMATIC_SIMULATION)" ns="/">   
+  <group if="$(arg KINEMATIC_SIMULATION)">
+
+    <node if="$(arg INTERACTIVE)" name="interactive_pose_node" pkg="perceptive_mpc" type="interactive_marker.py" output="screen">
+      <remap from="perceptive_mpc/desired_end_effector_pose" to="/des_pose_cmd" />
+      <remap from="target_pose" to="/target_pose" />
+    </node>
+
     <param name="robot_description" command="$(find xacro)/xacro  '$(find as_description)/robots/as.xacro'" />
 
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
-        <param name="publish_frequency" value="100"/>
+      <param name="publish_frequency" value="100" />
     </node>
 
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
@@ -49,9 +67,9 @@
       <param name="rate" value="50" />
       <rosparam param="source_list">[/as_control/joint_states]</rosparam>
     </node>
-    
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find as_description)/rviz/as.rviz" />
 
-  </group>>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find as_description)/rviz/kinematic_sim.rviz" />
+
+  </group>
 
 </launch>

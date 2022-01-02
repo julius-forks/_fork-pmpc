@@ -1,31 +1,3 @@
-/*
- * Copyright (c) 2020 Johannes Pankert <pankertj@ethz.ch>, Giuseppe Rizzi
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of this work nor the names of its
- *    contributors may be used to endorse or promote products derived from
- *    this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
 #include <geometry_msgs/TransformStamped.h>
 
 #include <armstone/AsPMPC.h>
@@ -48,39 +20,41 @@ AsPMPC::AsPMPC(const ros::NodeHandle &nh)
 
 //TODO:
 // Check old joint state and stop if old.
-// interactive  goal pub  full on sim., arm only  in real
+// interactive  goal pub  full on sim., arm only  in real. 
 
 bool AsPMPC::run()
 {
-
   ROS_INFO("Loading Params");
   parseParameters();
   loadTransforms();
 
-  // Init ros stuff
+  // ROS API
   ROS_INFO("Initialise ROS API");
-  initialTime_ = ros::Time::now().toSec();
-  tfListener_ = new tf2_ros::TransformListener(tfBuffer_, true);
   goalPoseSubscriber_ = nh_.subscribe("desired_end_effector_pose_topic", 1, &AsPMPC::desiredEndEffectorPoseCb, this); // For motion of arm only.
   taskTrajectorySubscriber_ = nh_.subscribe("trajectory_cmd_topic", 1, &AsPMPC::taskTrajectoryCmdCb, this);
   armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
   baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
+  armStatePublisher_ = nh_.advertise<sensor_msgs::JointState>("joint_states", 10);
+  pointsOnRobotPublisher_ = nh_.advertise<visualization_msgs::MarkerArray>("collision_points", 1, false);
+  endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("est_ee_pose", 100);
 
   // Initialise MPCInterface
   ROS_INFO("Initialise MPCInterface");
   AsPerceptiveMpcInterfaceConfig config;
-  config.taskFileName = mpcTaskFile_;
-  config.packagePath = packagePath_;
+  config.taskFileName = mpcTaskFile_;  
   config.kinematicsInterface = std::make_shared<asArmKinematics<ad_scalar_t>>(kinematicInterfaceConfig_);
   config.voxbloxConfig = configureCollisionAvoidance(config.kinematicsInterface);
   pmpcInterface_.reset(new AsPerceptiveMpcInterface(config));
   mpcInterface_ = std::make_shared<MpcInterface>(pmpcInterface_->getMpc());
   mpcInterface_->reset();
+  //
+  initialTime_ = ros::Time::now().toSec();
 
   //Setting initial state
   if (sim_mode_)
   {
     observation_.state() = pmpcInterface_->getInitialState();
+    observation_.time() = initialTime_;
   }
   else
   {
@@ -101,7 +75,7 @@ bool AsPMPC::run()
   }
   //observation_ should now be updated by the joint cb or set via initial
   ROS_INFO("Observation was updated; Setting up MPC loops");
-  optimalState_ = observation_.state();
+  optimalState_ = observation_.state();  
   setCurrentObservation(observation_);
 
   ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
@@ -113,15 +87,14 @@ bool AsPMPC::run()
   std::thread trackerWorker(&AsPMPC::trackerLoop, this, ros::Rate(controlLoopFrequency_));
 
   // Mpc update worker
-  mpcUpdateFrequency_ = (mpcUpdateFrequency_ == -1) ? 100 : mpcUpdateFrequency_;
   std::thread mpcUpdateWorker(&AsPMPC::mpcUpdate, this, ros::Rate(mpcUpdateFrequency_));
 
-  ros::spin();
+  std::thread tfUpdateWorker(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));
+  ros::spin();    
   trackerWorker.join();
   mpcUpdateWorker.join();
   if (sim_mode_)
-  {
-    std::thread tfUpdateWorker(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));
+  {    
     tfUpdateWorker.join();
   }
   return true;
@@ -142,8 +115,7 @@ void AsPMPC::parseParameters()
   base_frame_ = pNh.param<std::string>("base_frame", "base_link_footprint");
   odom_frame_ = pNh.param<std::string>("odom_frame", "odom");
   // Files
-  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");
-  packagePath_ = pNh.param<std::string>("package_path", "set_path_here");
+  mpcTaskFile_ = pNh.param<std::string>("mpc_task_file", "task.info");  
   // MPC params
   mpcUpdateFrequency_ = pNh.param<double>("mpc_update_frequency", 100);
   tfUpdateFrequency_ = pNh.param<double>("tf_update_frequency", 10);
@@ -314,7 +286,7 @@ bool AsPMPC::tfUpdate(ros::Rate rate)
   while (ros::ok())
   {
     try
-    {
+    {      
       Observation currentObservation;
       {
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
@@ -467,8 +439,8 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
 void AsPMPC::publishBaseTransform(const Observation &observation)
 {
   geometry_msgs::TransformStamped base_transform;
-  base_transform.header.frame_id = "odom";
-  base_transform.child_frame_id = "base_link_footprint";
+  base_transform.header.frame_id = odom_frame_;
+  base_transform.child_frame_id = base_frame_;
 
   Eigen::Quaterniond currentRotation = Eigen::Quaterniond(observation.state().head<Definitions::BASE_STATE_DIM_>().head<4>());
   currentRotation.normalize();
@@ -497,8 +469,8 @@ void AsPMPC::publishArmState(const Observation &observation)
   for (size_t joint_idx = 0; joint_idx < Definitions::ARM_STATE_DIM_; joint_idx++)
   {
     armState.position[joint_idx] = armConfiguration(joint_idx);
-  }
-  armStatePublisher_.publish(armState);
+  }  
+  armStatePublisher_.publish(armState);  
 }
 
 void AsPMPC::publishEndEffectorPose()
@@ -511,7 +483,7 @@ void AsPMPC::publishEndEffectorPose()
 
   // fill msg
   endEffectorPoseMsg.header.stamp = ros::Time::now();
-  endEffectorPoseMsg.header.frame_id = "odom";
+  endEffectorPoseMsg.header.frame_id = odom_frame_;
   endEffectorPoseMsg.header.seq = endEffectorPoseCounter++;
   endEffectorPoseMsg.pose.position.x = currentPosition(0);
   endEffectorPoseMsg.pose.position.y = currentPosition(1);
@@ -679,7 +651,7 @@ std::shared_ptr<VoxbloxCostConfig> AsPMPC::configureCollisionAvoidance(
 
 void AsPMPC::loadTransforms()
 {
-
+  tfListener_ = new tf2_ros::TransformListener(tfBuffer_, true);
   asArmKinematics<double> kinematics(kinematicInterfaceConfig_);
 
   ROS_INFO("Waiting for expected tf frames");
@@ -694,17 +666,11 @@ void AsPMPC::loadTransforms()
       geometry_msgs::TransformStamped transformStamped;
       try
       {
-        std::string _a=tfBuffer_.allFramesAsString();
-        ROS_INFO_STREAM(_a << std::endl);
-        // ROS_ERROR_THROTTLE(1.0,_a);
-        // transformStamped = tfBuffer_.lookupTransform("base_link", "xarm_mount", ros::Time(0));
         transformStamped = tfBuffer_.lookupTransform(base_frame_, kinematics.armMountLinkName(), ros::Time(0));
       }
       catch (tf2::TransformException &ex)
       {
-        // ROS_ERROR_THROTTLE(1.0, base_frame_);
-        // ROS_ERROR_THROTTLE(1.0, kinematics.armMountLinkName());
-        ROS_ERROR_THROTTLE(1.0,"%s", ex.what());
+        ROS_ERROR_THROTTLE(1.0, "%s", ex.what());
         continue;
       }
       Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,
@@ -728,7 +694,7 @@ void AsPMPC::loadTransforms()
       }
       catch (tf2::TransformException &ex)
       {
-        ROS_ERROR_THROTTLE(1.0,"%s", ex.what());
+        ROS_ERROR_THROTTLE(1.0, "%s", ex.what());
         continue;
       }
       Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,

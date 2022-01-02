@@ -43,10 +43,10 @@ namespace perceptive_mpc {
 /******************************************************************************************************/
 AsPerceptiveMpcInterface::AsPerceptiveMpcInterface(const AsPerceptiveMpcInterfaceConfig& config)
     : voxbloxConfig_(config.voxbloxConfig), kinematicsInterface_(config.kinematicsInterface) {      
-  // std::string packagePath = ros::package::getPath("perceptive_mpc");
 
-  std::string packagePath = config.packagePath;
   std::string taskFileName = config.taskFileName;
+
+  std::string packagePath = ros::package::getPath("perceptive_mpc");
   
   taskFile_ = packagePath + "/config/" + taskFileName;
   std::cerr << "Loading task file: " << taskFile_ << std::endl;
