@@ -247,9 +247,9 @@ limits
   }
   velocity
   {
-    (0,0)  0.5     ; base_linear  x[m/s]
-    (1,0)  0.5     ; base_linear y [m/s]
-    (2,0)  1.5     ; base_rot [rad/s]
+    (0,0)  0.2     ; base_linear  x[m/s]
+    (1,0)  0.2     ; base_linear y [m/s]
+    (2,0)  0.8     ; base_rot [rad/s]
     (3,0)  1     ; arm_1 [rad/s]
     (4,0)  1     ; arm_2 [rad/s]
     (5,0)  1     ; arm_3 [rad/s]

@@ -95,7 +95,7 @@ bool AsPMPC::run()
   mpcUpdateWorker.join();
   if (sim_mode_)
   {    
-    tfUpdateWorker.join();
+    // tfUpdateWorker.join();
   }
   return true;
 }
@@ -341,7 +341,7 @@ void AsPMPC::initializeCostDesiredTrajectory()
   auto currentEndEffectorPose = getEndEffectorPose();
   auto currentBasePose = getBasePose();
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
-  reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
+  reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();  
   reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
@@ -406,6 +406,7 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   kindr::HomTransformQuatD currentPose;
   kindr_ros::convertFromRosGeometryMsg(msgPtr->pose, desiredPose);
   kindr_ros::convertFromRosGeometryMsg(currentEndEffectorPose, currentPose);
+  auto currentBasePose = getBasePose();
 
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
@@ -417,10 +418,14 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   reference_vector_t reference0;
   reference0.head<Definitions::POSE_DIM>().head<4>() = currentPose.getRotation().toImplementation().coeffs();
   reference0.head<Definitions::POSE_DIM>().tail<3>() = currentPose.getPosition().toImplementation();
+  reference0.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference0.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
   reference_vector_t reference1;
   reference1.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
   reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+  reference1.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference1.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
   costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
   costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
