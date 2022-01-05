@@ -361,8 +361,7 @@ void AsPMPC::initializeCostDesiredTrajectory()
 }
 
 void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
-{
-  // USECASE put 0 base pose cost if you are using this
+{  
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   int N = taskTrajectory.points.size(); // point count
