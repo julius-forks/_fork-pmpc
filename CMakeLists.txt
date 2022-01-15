@@ -120,7 +120,9 @@ target_link_libraries(${PROJECT_NAME}_armstone
 
 add_executable(as_pmpc_node
         armstone/as_pmpc_node.cpp
-        armstone/AsPMPC.cpp)
+        armstone/AsPMPC.cpp
+        armstone/AsPMPC_RosApi.cpp
+        armstone/AsPMPC_Monitoring.cpp)
 
 add_dependencies(as_pmpc_node
         ${${PROJECT_NAME}_EXPORTED_TARGETS}

@@ -44,6 +44,7 @@
 // ros
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
+#include <sensor_msgs/Joy.h>
 #include <std_msgs/Float64MultiArray.h>
 #include <nav_msgs/Path.h>
 #include <ros/ros.h>
@@ -62,124 +63,148 @@
 // TODO: uncomment for admittance control on hardware:
 // #include <perceptive_mpc/AdmittanceReferenceModule.hpp>
 
-namespace perceptive_mpc {
+namespace perceptive_mpc
+{
 
-class AsPMPC {
- public:
-  typedef ocs2::SystemObservation<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> Observation;
-  typedef ocs2::MPC_MRT_Interface<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> MpcInterface;
-  typedef MpcInterface::input_vector_t InputVector;
-  using reference_vector_t = Eigen::Matrix<double, Definitions::REFERENCE_DIM, 1>;
+  class AsPMPC
+  {
+  public:
+    typedef ocs2::SystemObservation<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> Observation;
+    typedef ocs2::MPC_MRT_Interface<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> MpcInterface;
+    typedef MpcInterface::input_vector_t InputVector;
+    using reference_vector_t = Eigen::Matrix<double, Definitions::REFERENCE_DIM, 1>;
 
-  explicit AsPMPC(const ros::NodeHandle& nh = ros::NodeHandle());
+    explicit AsPMPC(const ros::NodeHandle &nh = ros::NodeHandle());
 
-  bool run();
+    bool run();
 
- protected:
-  std::string mpcTaskFile_;  
-  std::unique_ptr<perceptive_mpc::AsPerceptiveMpcInterface> pmpcInterface_;
-  std::shared_ptr<MpcInterface> mpcInterface_;
-  std::shared_ptr<PointsOnRobot> pointsOnRobot_;
-  std::shared_ptr<voxblox::EsdfCachingServer> esdfCachingServer_;
-  // TODO: uncomment for admittance control on hardware:
-  // AdmittanceReferenceModule admittanceReferenceModule;
+  protected:
+    std::string mpcTaskFile_;
+    std::unique_ptr<perceptive_mpc::AsPerceptiveMpcInterface> pmpcInterface_;
+    std::shared_ptr<MpcInterface> mpcInterface_;
+    std::shared_ptr<PointsOnRobot> pointsOnRobot_;
+    std::shared_ptr<voxblox::EsdfCachingServer> esdfCachingServer_;
+    // TODO: uncomment for admittance control on hardware:
+    // AdmittanceReferenceModule admittanceReferenceModule;
 
-  // params  
-  std::string end_effector_frame_;
-  std::string base_frame_;
-  std::string odom_frame_;
-  bool sim_mode_;
-  bool collision_mode_;
-  double mpcUpdateFrequency_;
-  double tfUpdateFrequency_;
-  double controlLoopFrequency_;
-  double maxLinearVelocity_;
-  double maxAngularVelocity_;
-  double base_mass;  
-  Eigen::Vector3d defaultForce_ = Eigen::Vector3d::Zero();
-  Eigen::Vector3d defaultTorque_ = Eigen::Vector3d::Zero();
+    // params
+    std::string end_effector_frame_;
+    std::string base_frame_;
+    std::string odom_frame_;
+    bool sim_mode_;
+    bool collision_mode_;
+    double mpcUpdateFrequency_;
+    double tfUpdateFrequency_;
+    double controlLoopFrequency_;
+    double maxLinearVelocity_;
+    double maxAngularVelocity_;
+    double base_mass;
 
-  // flags
-  std::atomic_bool planAvailable_;
-  std::atomic_bool mpcUpdateFailed_;
-  std::atomic_bool firstObservationUpdated_;
+    Eigen::Vector3d defaultForce_ = Eigen::Vector3d::Zero();
+    Eigen::Vector3d defaultTorque_ = Eigen::Vector3d::Zero();
 
-  double initialTime_;
-  MpcInterface::state_vector_t optimalState_;
+    // flags
+    std::atomic_bool planAvailable_;
+    std::atomic_bool mpcUpdateFailed_;
+    std::atomic_bool firstObservationUpdated_;
 
-  boost::shared_mutex observationMutex_;
-  Observation observation_;
-
-  MpcInterface::input_vector_t controlInput_;
-  boost::shared_mutex controlInputMutex_;
-  
-
-  KinematicInterfaceConfig kinematicInterfaceConfig_;
-
-  boost::shared_mutex costDesiredTrajectoryMutex_;
-  ocs2::CostDesiredTrajectories costDesiredTrajectories_; // quaternion of ee, xyz ee, forces? or something
-
-  // ros
-  ros::NodeHandle nh_;
-  ros::Subscriber goalPoseSubscriber_;
-  ros::Subscriber jointStatesSubscriber_; 
-  ros::Subscriber taskTrajectorySubscriber_;
-  ros::Publisher armJointVelPub_;
-  ros::Publisher baseTwistPub_;   
-  ros::Publisher pointsOnRobotPublisher_;
-  ros::Publisher armStatePublisher_;
-  ros::Publisher endEffectorPosePublisher_;
-  
-  tf2_ros::TransformBroadcaster tfBroadcaster_;
-  tf2_ros::Buffer tfBuffer_;
-  tf2_ros::TransformListener* tfListener_;
-  
-  geometry_msgs::Twist baseTwistMsg_;
-  std_msgs::Float64MultiArray armJointVelMsg_;
-
- protected:
-  // thread 1 simulates the control loop: query new mpc plan, writes observation
-  bool trackerLoop(ros::Rate rate);
-
-  // thread 2 is the mpc solver
-  bool mpcUpdate(ros::Rate rate);
-
-  // thread 3  for sim tf publish
-  bool tfUpdate(ros::Rate rate);
-
-  // compute the current end effector Pose on the base of the latest observation
-  kindr::HomTransformQuatD getEndEffectorPose();
-  kindr::HomTransformQuatD getBasePose();
-
-  // parse all ros parameters
-  void parseParameters();
-
-  std::shared_ptr<VoxbloxCostConfig> configureCollisionAvoidance(std::shared_ptr<KinematicsInterfaceAD> kinematicInterface);
-
-  // update the desired end effector pose on ros msg
-  void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr& msgPtr);
-  
-  void taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory& taskTrajectory);
-  
-  // update joint_state
-  void jointStatesCb(const sensor_msgs::JointStateConstPtr& msgPtr);
-
-  void pubControlInput(const MpcInterface::input_vector_t &controlInput);
-
-  // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
-  void setCurrentObservation(const Observation& observation);
-
-  void loadTransforms();
-
-  // publish the transform from odom to the robot base
-  void publishBaseTransform(const Observation& observation);
-
-  // publish the joint state message of the arm state
-  void publishArmState(const Observation& observation);
-
-  // publish the current end effector pose to ros
-  void publishEndEffectorPose();
+    // safety vars
+    double lastDeadManTime_;
+    boost::shared_mutex lastDeadManTimeMutex_;
+    double lastJointStateTime_;
+    boost::shared_mutex lastJointStateTimeMutex_;    
+    int mpcLoopCount_;
+    boost::shared_mutex mpcLoopCountMutex_;
+    int trackerLoopCount_;
+    boost::shared_mutex trackerLoopCountMutex_;
+    // Monitor vars
+    double monitorTimeLast_;
     
-  void initializeCostDesiredTrajectory();
-};
-}  // namespace perceptive_mpc
+    MpcInterface::state_vector_t optimalState_;
+
+    boost::shared_mutex observationMutex_;
+    Observation observation_;
+
+    MpcInterface::input_vector_t controlInput_;
+    boost::shared_mutex controlInputMutex_;
+
+    KinematicInterfaceConfig kinematicInterfaceConfig_;
+
+    boost::shared_mutex costDesiredTrajectoryMutex_;
+    ocs2::CostDesiredTrajectories costDesiredTrajectories_; // quaternion of ee, xyz ee, forces? or something
+
+    // ros
+    ros::NodeHandle nh_;
+    ros::Subscriber goalPoseSubscriber_;
+    ros::Subscriber jointStatesSubscriber_;
+    ros::Subscriber joySubscriber_;
+    ros::Subscriber taskTrajectorySubscriber_;
+    ros::Publisher armJointVelPub_;
+    ros::Publisher baseTwistPub_;
+    ros::Publisher pointsOnRobotPublisher_;
+    ros::Publisher armStatePublisher_;
+    ros::Publisher endEffectorPosePublisher_;
+
+    tf2_ros::TransformBroadcaster tfBroadcaster_;
+    tf2_ros::Buffer tfBuffer_;
+    tf2_ros::TransformListener *tfListener_;
+
+    geometry_msgs::Twist baseTwistMsg_;
+    std_msgs::Float64MultiArray armJointVelMsg_;
+
+  protected:
+    // thread 1 simulates the control loop: query new mpc plan, writes observation
+    bool trackerLoop(ros::Rate rate);
+
+    // thread 2 is the mpc solver
+    bool mpcUpdate(ros::Rate rate);
+
+    // thread 3  for sim tf publish
+    bool tfUpdate(ros::Rate rate);
+
+    // thread 4  for loop monitoring
+    bool loopMonitor(ros::Rate rate);  
+
+    //Member thread
+    std::thread* tfUpdateWorker_;   
+
+    // compute the current end effector Pose on the base of the latest observation
+    kindr::HomTransformQuatD getEndEffectorPose();
+    kindr::HomTransformQuatD getBasePose();
+
+    // parse all ros parameters
+    void parseParameters();
+
+    std::shared_ptr<VoxbloxCostConfig> configureCollisionAvoidance(std::shared_ptr<KinematicsInterfaceAD> kinematicInterface);
+
+    // update the desired end effector pose on ros msg
+    void desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr);
+
+    void joyCb(const sensor_msgs::JoyPtr &msgPtr);
+
+    bool isDead(); //checks if joy msg was old
+
+    void taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory);
+
+    // update joint_state
+    void jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr);
+
+    void pubControlInput(const MpcInterface::input_vector_t &controlInput);
+
+    // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
+    void setCurrentObservation(const Observation &observation);
+
+    void loadTransforms();
+
+    // publish the transform from odom to the robot base
+    void publishBaseTransform(const Observation &observation);
+
+    // publish the joint state message of the arm state
+    void publishArmState(const Observation &observation);
+
+    // publish the current end effector pose to ros
+    void publishEndEffectorPose();
+
+    void initializeCostDesiredTrajectory();
+  };
+} // namespace perceptive_mpc
