@@ -22,20 +22,40 @@ bool AsPMPC::loopMonitor(ros::Rate rate)
 
     int mpcLoopCount;
     int trackerLoopCount;
+    int tfLoopCount;
+    int obsCount;
 
     {
       boost::unique_lock<boost::shared_mutex> lockGuard1(mpcLoopCountMutex_);
-      boost::unique_lock<boost::shared_mutex> lockGuard2(trackerLoopCountMutex_);
-
       mpcLoopCount = mpcLoopCount_;
-      trackerLoopCount = trackerLoopCount_;
       mpcLoopCount_ = 0;
+    }
+
+    {
+      boost::unique_lock<boost::shared_mutex> lockGuard2(trackerLoopCountMutex_);
+      trackerLoopCount = trackerLoopCount_;
       trackerLoopCount_ = 0;
     }
+
+    {
+      boost::unique_lock<boost::shared_mutex> lockGuard3(tfLoopCountMutex_);
+      tfLoopCount = tfLoopCount_;
+      tfLoopCount_ = 0;
+    }
+
+    {
+      boost::unique_lock<boost::shared_mutex> lockGuard3(obsCountMutex_);
+      obsCount = obsCount_;
+      obsCount_ = 0;
+    }
+
     double time = ros::Time::now().toSec();
+    double dt = time - monitorTimeLast_;
     ROS_INFO_STREAM(std::endl
-                    << "    MPC loop rate:     " << std::round(((double)mpcLoopCount) / (time - monitorTimeLast_)) << std::endl
-                    << "    tracker loop rate:     " << std::round(((double)trackerLoopCount) / (time - monitorTimeLast_)) << std::endl
+                    << "    MPC loop rate:     " << std::round(((double)mpcLoopCount) / dt) << std::endl
+                    << "    tracker loop rate: " << std::round(((double)trackerLoopCount) / dt) << std::endl
+                    << "    TF loop rate:     " << std::round(((double)tfLoopCount) / dt) << std::endl
+                    << "    obs  rate:     " << std::round(((double)obsCount) / dt) << std::endl
                     << std::endl);
     monitorTimeLast_ = time;
 

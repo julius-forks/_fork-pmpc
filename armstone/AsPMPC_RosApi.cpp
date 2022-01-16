@@ -189,6 +189,11 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
   }
 
   firstObservationUpdated_ = true;
+
+  {
+    boost::unique_lock<boost::shared_mutex> lockGuard1(obsCountMutex_);
+    obsCount_++;
+  }
 }
 
 void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
@@ -207,19 +212,33 @@ void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
 
 void AsPMPC::pubControlInput(const MpcInterface::input_vector_t &controlInput)
 {
-  baseTwistMsg_.linear.x = std::max(std::min(controlInput[0], 0.2), -0.2);
-  baseTwistMsg_.linear.y = std::max(std::min(controlInput[1], 0.2), -0.2);
-  baseTwistMsg_.angular.z = std::max(std::min(controlInput[2], 0.5), -0.5);
-
-  armJointVelMsg_.data.clear();
-  for (int i = 3; i < 9; i++)
-  {
-    armJointVelMsg_.data.push_back(std::max(std::min(controlInput[i], 1.), -1.));
-  }
+  
 
   //If not dead -> publish
   if (!isDead())
   {
+    baseTwistMsg_.linear.x = std::max(std::min(controlInput[0], 0.2), -0.2);
+    baseTwistMsg_.linear.y = std::max(std::min(controlInput[1], 0.2), -0.2);
+    baseTwistMsg_.angular.z = std::max(std::min(controlInput[2], 0.5), -0.5);
+
+    armJointVelMsg_.data.clear();
+    for (int i = 3; i < 8; i++)
+    {
+      armJointVelMsg_.data.push_back(std::max(std::min(controlInput[i], 1.), -1.));
+    }
+    armJointVelMsg_.data.push_back(0.0);//Last joint always 0.
+    baseTwistPub_.publish(baseTwistMsg_);
+    armJointVelPub_.publish(armJointVelMsg_);
+  }else{
+    baseTwistMsg_.linear.x = 0.0;
+    baseTwistMsg_.linear.y = 0.0;
+    baseTwistMsg_.angular.z = 0.0;
+
+    armJointVelMsg_.data.clear();
+    for (int i = 3; i < 9; i++)
+    {
+      armJointVelMsg_.data.push_back(0.0);
+    }
     baseTwistPub_.publish(baseTwistMsg_);
     armJointVelPub_.publish(armJointVelMsg_);
   }

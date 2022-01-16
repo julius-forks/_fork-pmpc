@@ -338,6 +338,11 @@ bool AsPMPC::tfUpdate(ros::Rate rate)
       ROS_ERROR_STREAM("Caught exception while calling [AsKinematicSimulation::tfUpdate]. Message: " << ex.what());
       return false;
     }
+
+    {
+      boost::unique_lock<boost::shared_mutex> lockGuard1(tfLoopCountMutex_);
+      tfLoopCount_++;
+    }
     rate.sleep();
   }
   return true;

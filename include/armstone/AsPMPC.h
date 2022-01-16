@@ -117,8 +117,13 @@ namespace perceptive_mpc
     boost::shared_mutex mpcLoopCountMutex_;
     int trackerLoopCount_;
     boost::shared_mutex trackerLoopCountMutex_;
+    int tfLoopCount_;
+    boost::shared_mutex tfLoopCountMutex_;
+    int obsCount_;
+    boost::shared_mutex obsCountMutex_;
     // Monitor vars
     double monitorTimeLast_;
+    
     
     MpcInterface::state_vector_t optimalState_;
 
@@ -165,7 +170,7 @@ namespace perceptive_mpc
     // thread 4  for loop monitoring
     bool loopMonitor(ros::Rate rate);  
 
-    //Member thread
+    //Member thread 
     std::thread* tfUpdateWorker_;   
 
     // compute the current end effector Pose on the base of the latest observation

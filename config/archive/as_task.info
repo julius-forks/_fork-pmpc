@@ -146,10 +146,10 @@ base_ee_tracking_task
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
-    (6,6) 1.0  ; bx
-    (7,7) 1.0  ; by
-    (8,8) 1.0  ; byaw
-
+    (6,6) 0.5  ; bx
+    (7,7) 0.5  ; by
+    (8,8) 0.5  ; byaw
+    
   }
 
   ; control weight matrix
@@ -229,27 +229,27 @@ limits
   position_mpc_margin_deg 5
   lower
   {
-    (0,0)  -1.0472    ; arm_1
-    (1,0)  -1.2     ; arm_2
-    (2,0)  -3.11     ; arm_3
-    (3,0)  -3.0   ; arm_4
-    (4,0)  -1.18     ; arm_5
-    (5,0)  -3     ; arm_6 Should always be -1.57 but  gazebo might cause this not to work
+    (0,0)  -3.145     ; arm_1
+    (1,0)  -2.05     ; arm_2
+    (2,0)  -3.145     ; arm_3
+    (3,0)  -3.145     ; arm_4
+    (4,0)  -1.69297     ; arm_5
+    (5,0)  -3.145     ; arm_6
   }
   upper
   {
-    (0,0)  1.0472     ; arm_1
+    (0,0)  3.145     ; arm_1
     (1,0)  2.09         ; arm_2
     (2,0)  0.19198     ; arm_3
-    (3,0)  3.0     ; arm_4
-    (4,0)  2.5     ; arm_5
-    (5,0)  3     ; arm_6 
+    (3,0)  3.145     ; arm_4
+    (4,0)  3.145     ; arm_5
+    (5,0)  3.145     ; arm_6
   }
   velocity
   {
-    (0,0)  0.2     ; base_linear  x[m/s]
-    (1,0)  0.2     ; base_linear y [m/s]
-    (2,0)  0.5     ; base_rot [rad/s]
+    (0,0)  0.5     ; base_linear  x[m/s]
+    (1,0)  0.5     ; base_linear y [m/s]
+    (2,0)  1.5     ; base_rot [rad/s]
     (3,0)  1     ; arm_1 [rad/s]
     (4,0)  1     ; arm_2 [rad/s]
     (5,0)  1     ; arm_3 [rad/s]
