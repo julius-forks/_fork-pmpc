@@ -17,6 +17,8 @@ using namespace perceptive_mpc;
 
 void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
 {
+
+  ROS_WARN("Received trajectory request!!!");
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   int N = taskTrajectory.points.size(); // point count
@@ -42,13 +44,19 @@ void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory
     // Deal with feasibility. This should be a check rather than retime.
     if (i == 0)
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec()+1.;
     }
     else
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();
-    }
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();      
+    }    
+
+
+      // ROS_INFO_STREAM( std::endl                                        
+      //                         << "    Traj t:  " << costDesiredTrajectories_.desiredTimeTrajectory()[i] << std::endl
+      //                         << std::endl);
   }
+  
 }
 
 void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
@@ -202,7 +210,7 @@ void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
   // Axes 6 should be left pad on all joysticks
   {
     boost::unique_lock<boost::shared_mutex> lockGuard(lastDeadManTimeMutex_); //write mutex
-    if (msgPtr->axes[6] > 0.9)
+    if (msgPtr->axes[deadmanAxes_] > 0.9)
     {
       lastDeadManTime_ = ros::Time::now().toSec();
       // ROS_WARN_STREAM_THROTTLE(1.0, "Set deadman to now");

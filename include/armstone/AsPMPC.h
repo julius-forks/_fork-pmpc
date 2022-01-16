@@ -99,6 +99,7 @@ namespace perceptive_mpc
     double maxLinearVelocity_;
     double maxAngularVelocity_;
     double base_mass;
+    double deadmanAxes_;
 
     Eigen::Vector3d defaultForce_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d defaultTorque_ = Eigen::Vector3d::Zero();

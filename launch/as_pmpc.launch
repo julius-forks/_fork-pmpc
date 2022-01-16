@@ -4,6 +4,7 @@
   <arg name="KINEMATIC_SIMULATION" default="true" />
   <arg name="COLLISION_AVOIDANCE" default="false" />
   <arg name="INTERACTIVE" default="true" />
+  <arg name="sim" default="true" />
 
   <!--     Name of the task file which defines the mpc problem settings-->
   <arg name="mpc_task_file" default="as_task.info" />
@@ -16,7 +17,8 @@
     <param name="mpc_task_file" value="$(arg mpc_task_file)" />
     <!--  -->
     <param name="base_frame" value="base_link_footprint" />
-    <param name="odom_frame" value="odom" />
+    <param name="odom_frame" value="map" />
+    <!-- <param name="odom_frame" value="odom" /> -->
     <param name="end_effector_frame" value="extruder_ee" />
     <!--  -->
     <param name="base_com" value="[0,0,0.086]" />
@@ -27,6 +29,9 @@
     <param name="max_linear_velocity" value="1.0" />
     <param name="max_angular_velocity" value="1.0" />
     <param name="control_loop_frequency" value="50" />
+    <!-- deadman -->
+    <param if="$(arg sim)" name="deadman_axes" value="6" />
+    <param unless="$(arg sim)" name="deadman_axes" value="4" />
     <!--  -->
     <rosparam file="$(find perceptive_mpc)/config/kinematic_simulation_parameters.yaml" />
     <!-- Remaps -->

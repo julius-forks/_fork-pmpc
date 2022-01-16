@@ -146,9 +146,9 @@ base_ee_tracking_task
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
-    (6,6) 1.0  ; bx
-    (7,7) 1.0  ; by
-    (8,8) 1.0  ; byaw
+    (6,6) 0.1  ; bx
+    (7,7) 0.1  ; by
+    (8,8) 0.1  ; byaw
 
   }
 
@@ -250,11 +250,11 @@ limits
     (0,0)  0.2     ; base_linear  x[m/s]
     (1,0)  0.2     ; base_linear y [m/s]
     (2,0)  0.5     ; base_rot [rad/s]
-    (3,0)  1     ; arm_1 [rad/s]
-    (4,0)  1     ; arm_2 [rad/s]
-    (5,0)  1     ; arm_3 [rad/s]
-    (6,0)  1     ; arm_4 [rad/s]
-    (7,0)  1     ; arm_5 [rad/s]
-    (8,0)  0.1     ; arm_6 [rad/s]
+    (3,0)  0.5     ; arm_1 [rad/s]
+    (4,0)  0.5     ; arm_2 [rad/s]
+    (5,0)  0.5     ; arm_3 [rad/s]
+    (6,0)  0.5     ; arm_4 [rad/s]
+    (7,0)  0.5     ; arm_5 [rad/s]
+    (8,0)  0.05     ; arm_6 [rad/s]
   }
 } 

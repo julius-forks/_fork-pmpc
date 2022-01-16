@@ -137,6 +137,8 @@ void AsPMPC::parseParameters()
   maxLinearVelocity_ = pNh.param<double>("max_linear_velocity", 1.0);
   maxAngularVelocity_ = pNh.param<double>("max_angular_velocity", 1.0);
   controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 100);
+  // Other params
+  deadmanAxes_ = pNh.param<double>("deadman_axes", 4);
   lastDeadManTime_=0.;
 }
 
@@ -207,7 +209,7 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
         return false;
       }
 
-      ROS_INFO_STREAM_THROTTLE(1.0, std::endl
+      ROS_INFO_STREAM_THROTTLE(5.0, std::endl
                                         << "    Observation time:          " << observation.time() << std::endl                                        
                                         << "    run time:          " << observation.time()  << std::endl
                                         << "    current_state_base_q: " << observation.state().transpose().head<4>() << std::endl
