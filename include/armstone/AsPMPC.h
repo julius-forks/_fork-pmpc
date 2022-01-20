@@ -37,6 +37,8 @@
 #include <perceptive_mpc/Definitions.h>
 
 #include <m3dp_msgs/TaskTrajectory.h>
+#include <m3dp_msgs/PrintTrajectoryAction.h>
+#include <actionlib/server/simple_action_server.h>
 
 // ocs2
 #include <ocs2_core/automatic_differentiation/CppAdInterface.h>
@@ -84,8 +86,6 @@ namespace perceptive_mpc
     std::shared_ptr<MpcInterface> mpcInterface_;
     std::shared_ptr<PointsOnRobot> pointsOnRobot_;
     std::shared_ptr<voxblox::EsdfCachingServer> esdfCachingServer_;
-    // TODO: uncomment for admittance control on hardware:
-    // AdmittanceReferenceModule admittanceReferenceModule;
 
     // params
     std::string end_effector_frame_;
@@ -101,31 +101,33 @@ namespace perceptive_mpc
     double base_mass;
     double deadmanAxes_;
 
-    Eigen::Vector3d defaultForce_ = Eigen::Vector3d::Zero();
-    Eigen::Vector3d defaultTorque_ = Eigen::Vector3d::Zero();
-
     // flags
     std::atomic_bool planAvailable_;
     std::atomic_bool mpcUpdateFailed_;
     std::atomic_bool firstObservationUpdated_;
+    std::atomic_bool trajectoryUpdated_;
+    std::atomic_bool mpcEnabled_;
 
     // safety vars
     double lastDeadManTime_;
     boost::shared_mutex lastDeadManTimeMutex_;
     double lastJointStateTime_;
-    boost::shared_mutex lastJointStateTimeMutex_;    
-    int mpcLoopCount_;
-    boost::shared_mutex mpcLoopCountMutex_;
-    int trackerLoopCount_;
-    boost::shared_mutex trackerLoopCountMutex_;
-    int tfLoopCount_;
-    boost::shared_mutex tfLoopCountMutex_;
-    int obsCount_;
-    boost::shared_mutex obsCountMutex_;
+    boost::shared_mutex lastJointStateTimeMutex_;
+    std::atomic_int mpcLoopCount_;
+    std::atomic_int trackerLoopCount_;
+    std::atomic_int tfLoopCount_;
+    std::atomic_int obsCount_;
+
+    std::atomic_int mpcLoopRate_;
+    std::atomic_int trackerLoopRate_;
+    std::atomic_int tfLoopLoopRate_;
+    std::atomic_int obsRate_;
+
     // Monitor vars
     double monitorTimeLast_;
-    
-    
+
+    // MPC
+
     MpcInterface::state_vector_t optimalState_;
 
     boost::shared_mutex observationMutex_;
@@ -143,8 +145,8 @@ namespace perceptive_mpc
     ros::NodeHandle nh_;
     ros::Subscriber goalPoseSubscriber_;
     ros::Subscriber jointStatesSubscriber_;
-    ros::Subscriber joySubscriber_;
-    ros::Subscriber taskTrajectorySubscriber_;
+    ros::Subscriber joySubscriber_;    
+    actionlib::SimpleActionServer<m3dp_msgs::PrintTrajectoryAction> taskTrajectoryActionServer_;
     ros::Publisher armJointVelPub_;
     ros::Publisher baseTwistPub_;
     ros::Publisher pointsOnRobotPublisher_;
@@ -169,10 +171,10 @@ namespace perceptive_mpc
     bool tfUpdate(ros::Rate rate);
 
     // thread 4  for loop monitoring
-    bool loopMonitor(ros::Rate rate);  
+    bool loopMonitor(ros::Rate rate);
 
-    //Member thread 
-    std::thread* tfUpdateWorker_;   
+    //Member thread
+    std::thread *tfUpdateWorker_;
 
     // compute the current end effector Pose on the base of the latest observation
     kindr::HomTransformQuatD getEndEffectorPose();
@@ -188,14 +190,17 @@ namespace perceptive_mpc
 
     void joyCb(const sensor_msgs::JoyPtr &msgPtr);
 
-    bool isDead(); //checks if joy msg was old
+    bool isDead(); //checks if joy msg was old and or joint_states is old
 
-    void taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory);
+    void setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory);
+
+    void printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal);
 
     // update joint_state
     void jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr);
 
     void pubControlInput(const MpcInterface::input_vector_t &controlInput);
+    void pubControlInputZero();
 
     // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation
     void setCurrentObservation(const Observation &observation);

@@ -15,11 +15,13 @@ set(PACKAGE_DEPENDENCIES
     kindr_ros
     voxblox
     voxblox_ros
+    m3dp_msgs
+    actionlib
 )
 
 find_package(catkin REQUIRED COMPONENTS
     ${PACKAGE_DEPENDENCIES}
-    message_generation
+
 )
 
 find_package(Boost REQUIRED COMPONENTS
@@ -43,7 +45,7 @@ catkin_package(
     perceptive_mpc
   CATKIN_DEPENDS
     ${PACKAGE_DEPENDENCIES}
-    message_runtime
+    
   DEPENDS
     Boost
 )
@@ -122,7 +124,7 @@ add_executable(as_pmpc_node
         armstone/as_pmpc_node.cpp
         armstone/AsPMPC.cpp
         armstone/AsPMPC_RosApi.cpp
-        armstone/AsPMPC_Monitoring.cpp)
+        armstone/AsPMPC_Help.cpp)
 
 add_dependencies(as_pmpc_node
         ${${PROJECT_NAME}_EXPORTED_TARGETS}

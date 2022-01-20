@@ -20,7 +20,8 @@
   <depend>kindr_ros</depend>
   <depend>voxblox</depend>
   <depend>voxblox_ros</depend>
-  <exec_depend>message_runtime</exec_depend>
+  <depend>m3dp_msgs</depend>
+  <depend>actionlib</depend>  
   <export>
   </export>
 </package>

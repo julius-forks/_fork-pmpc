@@ -15,50 +15,124 @@
 
 using namespace perceptive_mpc;
 
-void AsPMPC::taskTrajectoryCmdCb(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal)
 {
 
-  ROS_WARN("Received trajectory request!!!");
+  ros::Rate r(5);  
+  auto feedback = m3dp_msgs::PrintTrajectoryFeedback();
+  auto result = m3dp_msgs::PrintTrajectoryResult();    
+
+
+  ROS_WARN("MPC Action Server received a new trajectory task");
+  setTaskTrajectory(goal->trajectory);
+  double start_time;
+  double end_time;
+  {
+    boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);    
+    start_time = costDesiredTrajectories_.desiredTimeTrajectory()[1]; //Note I'm ignoring first point
+    end_time = costDesiredTrajectories_.desiredTimeTrajectory().back();    
+  }
+
+  ROS_WARN_STREAM(std::endl
+                                  << "    Start time:          " << start_time << std::endl                                                                          
+                                  << "    end_time:          " << end_time << std::endl                                                                          
+                                  << std::endl);
+
+  
+  // TODO Ideally check if currenty is much further than the first one. If too far - dont start action server.
+  
+  mpcEnabled_=true;//Start mpc
+  while (ros::ok())
+  { 
+
+    // check that preempt has not been requested by the client
+    if (taskTrajectoryActionServer_.isPreemptRequested())
+    {
+      ROS_INFO("printTrajectoryAction: Preempted");
+      // set the action state to preempted
+      taskTrajectoryActionServer_.setPreempted();
+      result.success = false;
+      break;
+    }
+    
+    if (isDead())
+    {
+      ROS_INFO("Action Server Stopped because Deadman");      
+      taskTrajectoryActionServer_.setPreempted();
+      result.success = false;
+      break;
+    }
+
+    if (ros::Time::now().toSec()>end_time+1)
+    {
+      ROS_INFO("Action Server Completed");            
+      result.success = true;
+      taskTrajectoryActionServer_.setSucceeded(result);
+      break;
+    }
+
+    feedback.mpc_rate = mpcLoopRate_;
+    feedback.tracker_rate = trackerLoopRate_;
+    feedback.tf_rate = tfLoopLoopRate_;
+    feedback.obs_rate = mpcLoopRate_;
+    feedback.completion =  (ros::Time::now().toSec()-start_time)/(end_time - start_time);
+    taskTrajectoryActionServer_.publishFeedback(feedback);
+    r.sleep();
+  }
+
+}
+
+
+void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
+{ 
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   int N = taskTrajectory.points.size(); // point count
-  costDesiredTrajectories_.desiredStateTrajectory().resize(N);
-  costDesiredTrajectories_.desiredTimeTrajectory().resize(N);
-  costDesiredTrajectories_.desiredInputTrajectory().resize(N);
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N + 1);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N + 1);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N + 1);
 
-  for (int i = 0; i < N; i++)
+  // Get current
+  auto currentBasePose = getBasePose();
+  auto currentEEPose = getEndEffectorPose();
+  reference_vector_t reference0;
+  reference0.head<Definitions::POSE_DIM>().head<4>() = currentEEPose.getRotation().toImplementation().coeffs();
+  reference0.head<Definitions::POSE_DIM>().tail<3>() = currentEEPose.getPosition().toImplementation();
+  reference0.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference0.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
+
+  for (int i = 0; i < N + 1; i++)
   {
-    kindr::HomTransformQuatD desiredEEPose;
-    kindr::HomTransformQuatD desiredBPose;
-    reference_vector_t reference;
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].ee_pose, desiredEEPose);  // to kindr pose
-    kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i].base_pose, desiredBPose); // to kindr pose
-    reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
-    reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
-    reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
-    reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
-
-    costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
-    costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
 
     // Deal with feasibility. This should be a check rather than retime.
     if (i == 0)
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec()+1.;
+      costDesiredTrajectories_.desiredStateTrajectory()[i] = reference0; //shove into desire STATE trajecotry
+      costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
     }
     else
     {
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + taskTrajectory.points[i].time_from_start.toSec();      
-    }    
+      kindr::HomTransformQuatD desiredEEPose;
+      kindr::HomTransformQuatD desiredBPose;
+      reference_vector_t reference;
+      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i - 1].ee_pose, desiredEEPose);  // to kindr pose
+      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i - 1].base_pose, desiredBPose); // to kindr pose
+      reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
+      reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
+      reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+      reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
 
-
-      // ROS_INFO_STREAM( std::endl                                        
-      //                         << "    Traj t:  " << costDesiredTrajectories_.desiredTimeTrajectory()[i] << std::endl
-      //                         << std::endl);
+      costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
+      costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + 10.0 + taskTrajectory.points[i - 1].time_from_start.toSec();
+    }
   }
-  
+  trajectoryUpdated_ = true;
+  ROS_WARN("Trajectory set (inside set trajectory)");
 }
 
+// This only for tests
 void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
 {
   // USECASE put 0 base pose cost if you are using this
@@ -101,6 +175,9 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
 
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
+
+  trajectoryUpdated_ = true;
+  mpcEnabled_=true;//In pose call back you never unset mpc.
 }
 
 void AsPMPC::publishBaseTransform(const Observation &observation)
@@ -190,18 +267,12 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
     observation_.state(10) = msgPtr->position[7];
     observation_.state(11) = msgPtr->position[8];
     observation_.state(12) = msgPtr->position[9];
-    // observation_.time() = msgPtr->header.stamp.toSec() -initialTime_;
-    // observation_.time() = msgPtr->header.stamp.toSec(); //TODO delet when this is clear
     observation_.time() = ros::Time::now().toSec();
     lastJointStateTime_ = ros::Time::now().toSec();
   }
 
   firstObservationUpdated_ = true;
-
-  {
-    boost::unique_lock<boost::shared_mutex> lockGuard1(obsCountMutex_);
-    obsCount_++;
-  }
+  obsCount_++;
 }
 
 void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
@@ -220,8 +291,6 @@ void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
 
 void AsPMPC::pubControlInput(const MpcInterface::input_vector_t &controlInput)
 {
-  
-
   //If not dead -> publish
   if (!isDead())
   {
@@ -234,20 +303,28 @@ void AsPMPC::pubControlInput(const MpcInterface::input_vector_t &controlInput)
     {
       armJointVelMsg_.data.push_back(std::max(std::min(controlInput[i], 1.), -1.));
     }
-    armJointVelMsg_.data.push_back(0.0);//Last joint always 0.
-    baseTwistPub_.publish(baseTwistMsg_);
-    armJointVelPub_.publish(armJointVelMsg_);
-  }else{
-    baseTwistMsg_.linear.x = 0.0;
-    baseTwistMsg_.linear.y = 0.0;
-    baseTwistMsg_.angular.z = 0.0;
-
-    armJointVelMsg_.data.clear();
-    for (int i = 3; i < 9; i++)
-    {
-      armJointVelMsg_.data.push_back(0.0);
-    }
+    armJointVelMsg_.data.push_back(0.0); //Last joint always 0.
     baseTwistPub_.publish(baseTwistMsg_);
     armJointVelPub_.publish(armJointVelMsg_);
   }
+  else
+  {
+    pubControlInputZero();
+  }
+}
+
+void AsPMPC::pubControlInputZero()
+{
+
+  baseTwistMsg_.linear.x = 0.0;
+  baseTwistMsg_.linear.y = 0.0;
+  baseTwistMsg_.angular.z = 0.0;
+
+  armJointVelMsg_.data.clear();
+  for (int i = 3; i < 9; i++)
+  {
+    armJointVelMsg_.data.push_back(0.0);
+  }
+  baseTwistPub_.publish(baseTwistMsg_);
+  armJointVelPub_.publish(armJointVelMsg_);
 }
