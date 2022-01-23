@@ -371,12 +371,13 @@ void AsPMPC::initializeCostDesiredTrajectory()
   }
 
   costDesiredTrajectories_.desiredTimeTrajectory().push_back(observation.time());
-  costDesiredTrajectories_.desiredTimeTrajectory().push_back(observation.time() + 2);
+  costDesiredTrajectories_.desiredTimeTrajectory().push_back(observation.time() + 1);
   costDesiredTrajectories_.desiredStateTrajectory().push_back(reference);
   costDesiredTrajectories_.desiredStateTrajectory().push_back(reference);
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
-  costDesiredTrajectories_.display();
+  // costDesiredTrajectories_.display();
+  ROS_WARN("Trajectory reset to self");
 
   trajectoryUpdated_ = true;
 }

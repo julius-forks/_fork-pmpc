@@ -25,6 +25,7 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
   ROS_WARN("MPC Action Server received a new trajectory task");
   setTaskTrajectory(goal->trajectory);
   mpcControlEnabled_ = true; //Start mpc
+  checkDead();
   double start_time;
   double end_time;
   {
@@ -35,10 +36,6 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
 
   ROS_WARN_STREAM(std::endl
                   << "    Start time:          " << start_time << std::endl
-                                  << "    Start time:          " << start_time << std::endl                                                                          
-                  << "    Start time:          " << start_time << std::endl
-                  << "    end_time:          " << end_time << std::endl
-                                  << "    end_time:          " << end_time << std::endl                                                                          
                   << "    end_time:          " << end_time << std::endl
                   << std::endl);
 
