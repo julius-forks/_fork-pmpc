@@ -22,33 +22,36 @@ bool AsPMPC::loopMonitor(ros::Rate rate)
     double time = ros::Time::now().toSec();
     double dt = time - monitorTimeLast_;
 
+    {
+      mpcLoopRate_=(int)std::round(((double)mpcLoopCount_) / dt);
+      trackerLoopRate_=(int)std::round(((double)trackerLoopCount_) / dt);
+      tfLoopLoopRate_=(int)std::round(((double)tfLoopCount_) / dt);
+      obsRate_=(int)std::round(((double)obsCount_) / dt);
+      obsCount_ = 0;
+      tfLoopCount_ = 0;
+      trackerLoopCount_ = 0;
+      mpcLoopCount_ = 0;
 
-    mpcLoopRate_=(int)std::round(((double)mpcLoopCount_) / dt);
-    trackerLoopRate_=(int)std::round(((double)trackerLoopCount_) / dt);
-    tfLoopLoopRate_=(int)std::round(((double)tfLoopCount_) / dt);
-    obsRate_=(int)std::round(((double)obsCount_) / dt);
-    obsCount_ = 0;
-    tfLoopCount_ = 0;
-    trackerLoopCount_ = 0;
-    mpcLoopCount_ = 0;
-
-    ROS_INFO_STREAM(std::endl
-                    << "    MPC loop rate:     " << mpcLoopRate_ << std::endl
-                    << "    tracker loop rate: " << trackerLoopRate_ << std::endl
-                    << "    TF loop rate:     " <<tfLoopLoopRate_ << std::endl
-                    << "    obs  rate:     " << obsRate_ << std::endl
-                    << std::endl);
-    monitorTimeLast_ = time;
-
-   
-
+      ROS_INFO_STREAM(std::endl
+                      << "    MPC loop rate:     " << mpcLoopRate_ << std::endl
+                      << "    tracker loop rate: " << trackerLoopRate_ << std::endl
+                      << "    TF loop rate:     " <<tfLoopLoopRate_ << std::endl
+                      << "    obs  rate:     " << obsRate_ << std::endl
+                      << std::endl);
+      monitorTimeLast_ = time;
+    }
+    
+    checkDead(); //run constant check dead. 
+    if(isDead_){ // if dead then lets set trajectory to current one.
+      initializeCostDesiredTrajectory();//set to current
+    }
     rate.sleep();
   }
   return true;
 }
 
 
-bool AsPMPC::isDead()
+void AsPMPC::checkDead()
 {
 
   {
@@ -56,7 +59,8 @@ bool AsPMPC::isDead()
     if (ros::Time::now().toSec() > lastDeadManTime_ + 0.15)
     {
       ROS_WARN_STREAM_THROTTLE(1.0, "DEADMAN SWITCH RELEASED. Stopping input publishing");
-      return true;
+      isDead_=true; // dead
+      return;
     }
   }
 
@@ -64,12 +68,18 @@ bool AsPMPC::isDead()
     boost::shared_lock<boost::shared_mutex> lockGuard(lastJointStateTimeMutex_); //Read mutex
     if (ros::Time::now().toSec() > lastJointStateTime_ + 0.15)
     {
+      isDead_=true; // dead
       ROS_WARN_STREAM_THROTTLE(1.0, "Joint states msg old. Stopping input publishing");
-      return true;
+      return;
     }
   }
 
-  return false;
+  if (!mpcControlEnabled_){
+    isDead_=true;
+    return;
+  }
+
+  isDead_=false; //not dead
 }
 
 

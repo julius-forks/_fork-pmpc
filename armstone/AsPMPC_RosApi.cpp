@@ -18,33 +18,35 @@ using namespace perceptive_mpc;
 void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal)
 {
 
-  ros::Rate r(5);  
+  ros::Rate r(5);
   auto feedback = m3dp_msgs::PrintTrajectoryFeedback();
-  auto result = m3dp_msgs::PrintTrajectoryResult();    
-
+  auto result = m3dp_msgs::PrintTrajectoryResult();
 
   ROS_WARN("MPC Action Server received a new trajectory task");
   setTaskTrajectory(goal->trajectory);
+  mpcControlEnabled_ = true; //Start mpc
   double start_time;
   double end_time;
   {
-    boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);    
+    boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
     start_time = costDesiredTrajectories_.desiredTimeTrajectory()[1]; //Note I'm ignoring first point
-    end_time = costDesiredTrajectories_.desiredTimeTrajectory().back();    
+    end_time = costDesiredTrajectories_.desiredTimeTrajectory().back();
   }
 
   ROS_WARN_STREAM(std::endl
+                  << "    Start time:          " << start_time << std::endl
                                   << "    Start time:          " << start_time << std::endl                                                                          
+                  << "    Start time:          " << start_time << std::endl
+                  << "    end_time:          " << end_time << std::endl
                                   << "    end_time:          " << end_time << std::endl                                                                          
-                                  << std::endl);
+                  << "    end_time:          " << end_time << std::endl
+                  << std::endl);
 
-  
   // TODO Ideally check if currenty is much further than the first one. If too far - dont start action server.
-  
-  mpcEnabled_=true;//Start mpc
-  while (ros::ok())
-  { 
 
+  ROS_INFO("Entering AS loop");
+  while (ros::ok())
+  {
     // check that preempt has not been requested by the client
     if (taskTrajectoryActionServer_.isPreemptRequested())
     {
@@ -54,18 +56,18 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
       result.success = false;
       break;
     }
-    
-    if (isDead())
+
+    if (isDead_)
     {
-      ROS_INFO("Action Server Stopped because Deadman");      
+      ROS_INFO("Action Server Stopped because Deadman");
       taskTrajectoryActionServer_.setPreempted();
       result.success = false;
       break;
     }
 
-    if (ros::Time::now().toSec()>end_time+1)
+    if (ros::Time::now().toSec() > end_time + 1)
     {
-      ROS_INFO("Action Server Completed");            
+      ROS_INFO("Action Server Completed");
       result.success = true;
       taskTrajectoryActionServer_.setSucceeded(result);
       break;
@@ -75,16 +77,18 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
     feedback.tracker_rate = trackerLoopRate_;
     feedback.tf_rate = tfLoopLoopRate_;
     feedback.obs_rate = mpcLoopRate_;
-    feedback.completion =  (ros::Time::now().toSec()-start_time)/(end_time - start_time);
+    feedback.completion = (ros::Time::now().toSec() - start_time) / (end_time - start_time);
     taskTrajectoryActionServer_.publishFeedback(feedback);
+    ROS_INFO("Feedback Published");
     r.sleep();
   }
-
+  ROS_INFO("Exiting AS loop");
+  initializeCostDesiredTrajectory();//set to current  
+  mpcControlEnabled_ = false; //stop mpc  
 }
 
-
 void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
-{ 
+{
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   int N = taskTrajectory.points.size(); // point count
@@ -176,8 +180,8 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
 
-  trajectoryUpdated_ = true;
-  mpcEnabled_=true;//In pose call back you never unset mpc.
+  trajectoryUpdated_ = true;  
+  mpcControlEnabled_= true;
 }
 
 void AsPMPC::publishBaseTransform(const Observation &observation)
@@ -270,6 +274,7 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
     observation_.time() = ros::Time::now().toSec();
     lastJointStateTime_ = ros::Time::now().toSec();
   }
+  // TODO put FIR 0.6 0.35 0.05. Need to copy over things. 
 
   firstObservationUpdated_ = true;
   obsCount_++;
@@ -292,7 +297,7 @@ void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
 void AsPMPC::pubControlInput(const MpcInterface::input_vector_t &controlInput)
 {
   //If not dead -> publish
-  if (!isDead())
+  if (!isDead_)
   {
     baseTwistMsg_.linear.x = std::max(std::min(controlInput[0], 0.2), -0.2);
     baseTwistMsg_.linear.y = std::max(std::min(controlInput[1], 0.2), -0.2);

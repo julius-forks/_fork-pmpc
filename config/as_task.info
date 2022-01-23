@@ -146,12 +146,11 @@ base_ee_tracking_task
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
-    (6,6) 0.1  ; bx
-    (7,7) 0.1  ; by
-    (8,8) 0.1  ; byaw
+    (6,6) 1.0  ; bx
+    (7,7) 1.0  ; by
+    (8,8) 1.0  ; byaw
 
   }
-
   ; control weight matrix
   R
   {
@@ -171,17 +170,17 @@ base_ee_tracking_task
   ; final state weight matrix
   Q_final
   {
-    scaling 0e+1
+    scaling 1e+1
 
-    (0,0) 0.0  ; x
-    (1,1) 0.0  ; y
-    (2,2) 0.0  ; z
-    (3,3) 0.0  ; roll
-    (4,4) 0.0  ; pitch
+    (0,0) 10.0  ; x
+    (1,1) 10.0  ; y
+    (2,2) 10.0  ; z
+    (3,3) 1.0  ; roll
+    (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
-    (6,6) 0.0  ; bx
-    (7,7) 0.0  ; by
-    (8,8) 0.0  ; byaw
+    (6,6) 1.0  ; bx
+    (7,7) 1.0  ; by
+    (8,8) 1.0  ; byaw
   }
 }
 

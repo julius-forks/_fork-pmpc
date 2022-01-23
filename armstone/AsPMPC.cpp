@@ -25,7 +25,8 @@ bool AsPMPC::run()
 {
 
   // Explicit flag setting just in case:
-  mpcEnabled_ = false;
+  isDead_=true;
+  mpcControlEnabled_ = false;
   mpcLoopRate_ = 0;
   trackerLoopRate_ = 0;
   tfLoopLoopRate_ = 0;
@@ -50,9 +51,7 @@ bool AsPMPC::run()
   armStatePublisher_ = nh_.advertise<sensor_msgs::JointState>("joint_states", 10);
   pointsOnRobotPublisher_ = nh_.advertise<visualization_msgs::MarkerArray>("collision_points", 1, false);
   endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("est_ee_pose", 100);
-  // taskTrajectoryActionServer_ = actionlib::SimpleActionServer<m3dp_msgs::PrintTrajectoryAction>(nh_, "PrintTrajectory", &AsPMPC::printTrajectoryActionCb, true);
-  // taskTrajectoryActionServer_ = actionlib::SimpleActionServer<m3dp_msgs::PrintTrajectoryAction>();
-  // actionlib::SimpleActionServer<m3dp_msgs::PrintTrajectoryAction>  taskTrajectoryActionServer_(nh_, "PrintTrajectory", boost::bind(&AsPMPC::printTrajectoryActionCb, this, _1), true);
+  
   // Initialise MPCInterface
   ROS_INFO("Initialise MPCInterface");
   AsPerceptiveMpcInterfaceConfig config;
@@ -95,13 +94,8 @@ bool AsPMPC::run()
 
   ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
   ROS_INFO_STREAM("Initial time (delta): " << observation_.time());
-
-  if (sim_mode_)
-  {
-    // Only set initial if in kinematic simulation mode
-    initializeCostDesiredTrajectory();
-    mpcEnabled_ = true; //Only in kinematic simulation starting with mpc enabled
-  }
+  
+  initializeCostDesiredTrajectory();      
 
   // Tracker worker
   std::thread trackerWorker(&AsPMPC::trackerLoop, this, ros::Rate(controlLoopFrequency_));
@@ -115,7 +109,7 @@ bool AsPMPC::run()
   }
 
   //Thread monitor
-  std::thread loopMonitorWorker(&AsPMPC::loopMonitor, this, ros::Rate(1.));
+  std::thread loopMonitorWorker(&AsPMPC::loopMonitor, this, ros::Rate(2.));
   ros::spin(); //Blocks. When action server is executed it takes over ros spins.
   // Wait for threads to end
   trackerWorker.join(); //Waits for threads
@@ -169,9 +163,8 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
       }
 
       // This essentially waits for first plan. Im also using it as enable/disable
-      if (!planAvailable_)
-      {
-        pubControlInputZero(); //TODo
+      if ((!planAvailable_) )
+      {        
         rate.sleep();
         continue;
       }
@@ -182,8 +175,10 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
 
         if (sim_mode_)
         {
-          boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex
-          observation_.state() = optimalState_;
+          boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex          
+          if(!isDead_){
+            observation_.state() = optimalState_;             
+          }
           observation_.time() = ros::Time::now().toSec();
           observation = observation_;
         }
@@ -225,18 +220,18 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
       }
 
       ROS_INFO_STREAM_THROTTLE(5.0, std::endl
-                                        << "    Observation time:          " << observation.time() << std::endl
-                                        << "    run time:          " << observation.time() << std::endl
-                                        << "    current_state_base_q: " << observation.state().transpose().head<4>() << std::endl
-                                        << "    current_state_base_xyz: " << observation.state().transpose().head<7>().tail<3>() << std::endl
-                                        << "    current_state_arm_joints: " << observation.state().transpose().tail<6>() << std::endl
-                                        << "    optimalState_base_q:  " << optimalState.transpose().head<4>() << std::endl
-                                        << "    optimalState_base_xyz:  " << optimalState.transpose().head<7>().tail<3>() << std::endl
-                                        << "    optimalState_arm_joints:  " << optimalState.transpose().tail<6>() << std::endl
-                                        << "    controlInput_base_xyth:  " << controlInput.transpose().head<3>() << std::endl
-                                        << "    controlInput_arm_vel:  " << controlInput.transpose().tail<6>() << std::endl
-                                        << "    Full Control INput:  " << controlInput.transpose() << std::endl
-                                        << std::endl);
+        << "    Observation time:          " << observation.time() << std::endl
+        << "    run time:          " << observation.time() << std::endl
+        << "    current_state_base_q: " << observation.state().transpose().head<4>() << std::endl
+        << "    current_state_base_xyz: " << observation.state().transpose().head<7>().tail<3>() << std::endl
+        << "    current_state_arm_joints: " << observation.state().transpose().tail<6>() << std::endl
+        << "    optimalState_base_q:  " << optimalState.transpose().head<4>() << std::endl
+        << "    optimalState_base_xyz:  " << optimalState.transpose().head<7>().tail<3>() << std::endl
+        << "    optimalState_arm_joints:  " << optimalState.transpose().tail<6>() << std::endl
+        << "    controlInput_base_xyth:  " << controlInput.transpose().head<3>() << std::endl
+        << "    controlInput_arm_vel:  " << controlInput.transpose().tail<6>() << std::endl
+        << "    Full Control INput:  " << controlInput.transpose() << std::endl
+        << std::endl);
       optimalState_ = optimalState;
     }
     catch (const std::runtime_error &ex)
@@ -267,14 +262,7 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
       rate.sleep();
       continue;
     }
-
-    if (!mpcEnabled_)
-    {
-      planAvailable_ = false;
-      rate.sleep();
-      continue;
-    }
-
+  
     try
     {
       if (trajectoryUpdated_)
@@ -282,7 +270,7 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
 
         boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
         mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);
-        ROS_INFO("MPC trajectory updated (inside mpc loop)");
+        // ROS_INFO("MPC trajectory updated (inside mpc loop)");
         trajectoryUpdated_ = false;
       }
       {
@@ -291,7 +279,7 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
       }
       if (esdfCachingServer_)
       {
-        esdfCachingServer_->updateInterpolator(); //TODO if I get mpc instability using enable/disable its likely because mpc is deriving the state observation. SO i cant pause it. Potentially can try to reset it.  If not - i can't pause the computation. oonly output.  how to test: setup mpc. get it to go execute a thing. pause. move the robot to a difrfernt location. e.g. begining of the print . print again. mcp will be unpaused. observation updated  tec etc.
+        esdfCachingServer_->updateInterpolator(); 
       }
       mpcInterface_->advanceMpc();
     }

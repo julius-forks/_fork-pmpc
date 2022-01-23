@@ -106,7 +106,7 @@ namespace perceptive_mpc
     std::atomic_bool mpcUpdateFailed_;
     std::atomic_bool firstObservationUpdated_;
     std::atomic_bool trajectoryUpdated_;
-    std::atomic_bool mpcEnabled_;
+    std::atomic_bool mpcControlEnabled_;
 
     // safety vars
     double lastDeadManTime_;
@@ -122,6 +122,8 @@ namespace perceptive_mpc
     std::atomic_int trackerLoopRate_;
     std::atomic_int tfLoopLoopRate_;
     std::atomic_int obsRate_;
+
+    std::atomic_bool isDead_;
 
     // Monitor vars
     double monitorTimeLast_;
@@ -190,7 +192,7 @@ namespace perceptive_mpc
 
     void joyCb(const sensor_msgs::JoyPtr &msgPtr);
 
-    bool isDead(); //checks if joy msg was old and or joint_states is old
+    void checkDead(); //checks if joy msg was old and or joint_states is old
 
     void setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory);
 
