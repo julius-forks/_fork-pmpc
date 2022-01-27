@@ -75,9 +75,12 @@
 
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find as_description)/rviz/kinematic_sim.rviz" />
 
+    <node  pkg="tf2_ros" type="static_transform_publisher" name="map_is_odom" args="0 0 0 0 0 0 1 map odom" />
+
     <group ns="ui">
       <include file="$(find as_ui)/launch/load_joy_stack.launch">
-          <arg name="joy_type" value="input/js0" />          
+          <!-- <arg name="joy_type" value="input/js0" />  -->
+          <arg name="joy_type" value="STADIA_GREEN" />          
       </include>     
   </group>
 

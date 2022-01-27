@@ -137,7 +137,7 @@ void AsPMPC::parseParameters()
   sim_mode_ = pNh.param<bool>("kinematic_simulation_mode", true);
   collision_mode_ = pNh.param<bool>("collision_avoidance_mode", false);
   // Frames
-  end_effector_frame_ = pNh.param<std::string>("end_effector_frame", "ee");
+  end_effector_frame_ = pNh.param<std::string>("end_effector_frame", "extruder_ee");
   base_frame_ = pNh.param<std::string>("base_frame", "base_link_footprint");
   odom_frame_ = pNh.param<std::string>("odom_frame", "odom");
   // Files

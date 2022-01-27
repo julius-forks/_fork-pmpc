@@ -258,3 +258,41 @@ limits
     (8,0)  1     ; arm_6 [rad/s]
   }
 } 
+
+ restricted
+; joint limits
+limits
+{
+  enforce_limits     1
+  position_mpc_margin_deg 5
+  lower
+  {
+    (0,0)  -1.0472    ; arm_1
+    (1,0)  -1.2     ; arm_2
+    (2,0)  -3.11     ; arm_3
+    (3,0)  -3.0   ; arm_4
+    (4,0)  -1.18     ; arm_5
+    (5,0)  -1.37     ; arm_6 Should always be -1.57 but  gazebo might cause this not to work
+  }
+  upper
+  {
+    (0,0)  1.0472       ; arm_1
+    (1,0)  2.09         ; arm_2
+    (2,0)  0.19198      ; arm_3
+    (3,0)  3.0          ; arm_4
+    (4,0)  2.5          ; arm_5
+    (5,0)  -1.77        ; arm_6 
+  }
+  velocity
+  {
+    (0,0)  0.2     ; base_linear  x[m/s]
+    (1,0)  0.2     ; base_linear y [m/s]
+    (2,0)  0.5     ; base_rot [rad/s]
+    (3,0)  0.5     ; arm_1 [rad/s]
+    (4,0)  0.5     ; arm_2 [rad/s]
+    (5,0)  0.5     ; arm_3 [rad/s]
+    (6,0)  0.5     ; arm_4 [rad/s]
+    (7,0)  0.5     ; arm_5 [rad/s]
+    (8,0)  0.05     ; arm_6 [rad/s]
+  }
+} 
