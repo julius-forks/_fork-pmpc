@@ -62,8 +62,6 @@
 #include <kindr/Core>
 
 #include <perceptive_mpc/EsdfCachingServer.hpp>
-// TODO: uncomment for admittance control on hardware:
-// #include <perceptive_mpc/AdmittanceReferenceModule.hpp>
 
 namespace perceptive_mpc
 {
@@ -106,9 +104,10 @@ namespace perceptive_mpc
     std::atomic_bool mpcUpdateFailed_;
     std::atomic_bool firstObservationUpdated_;
     std::atomic_bool trajectoryUpdated_;
-    std::atomic_bool mpcControlEnabled_;
+    std::atomic_bool isDead_;
 
     // safety vars
+    double monitorTimeLast_;
     double lastDeadManTime_;
     boost::shared_mutex lastDeadManTimeMutex_;
     double lastJointStateTime_;
@@ -123,13 +122,9 @@ namespace perceptive_mpc
     std::atomic_int tfLoopLoopRate_;
     std::atomic_int obsRate_;
 
-    std::atomic_bool isDead_;
-
-    // Monitor vars
-    double monitorTimeLast_;
+    std::atomic_bool reinitMpc_;
 
     // MPC
-
     MpcInterface::state_vector_t optimalState_;
 
     boost::shared_mutex observationMutex_;
@@ -141,19 +136,20 @@ namespace perceptive_mpc
     KinematicInterfaceConfig kinematicInterfaceConfig_;
 
     boost::shared_mutex costDesiredTrajectoryMutex_;
-    ocs2::CostDesiredTrajectories costDesiredTrajectories_; // quaternion of ee, xyz ee, forces? or something
+    ocs2::CostDesiredTrajectories costDesiredTrajectories_;
 
     // ros
     ros::NodeHandle nh_;
     ros::Subscriber goalPoseSubscriber_;
     ros::Subscriber jointStatesSubscriber_;
-    ros::Subscriber joySubscriber_;    
+    ros::Subscriber joySubscriber_;
     actionlib::SimpleActionServer<m3dp_msgs::PrintTrajectoryAction> taskTrajectoryActionServer_;
     ros::Publisher armJointVelPub_;
     ros::Publisher baseTwistPub_;
     ros::Publisher pointsOnRobotPublisher_;
     ros::Publisher armStatePublisher_;
     ros::Publisher endEffectorPosePublisher_;
+    ros::AsyncSpinner asyncSpinner_;
 
     tf2_ros::TransformBroadcaster tfBroadcaster_;
     tf2_ros::Buffer tfBuffer_;
@@ -175,9 +171,6 @@ namespace perceptive_mpc
     // thread 4  for loop monitoring
     bool loopMonitor(ros::Rate rate);
 
-    //Member thread
-    std::thread *tfUpdateWorker_;
-
     // compute the current end effector Pose on the base of the latest observation
     kindr::HomTransformQuatD getEndEffectorPose();
     kindr::HomTransformQuatD getBasePose();
@@ -194,6 +187,10 @@ namespace perceptive_mpc
 
     void checkDead(); //checks if joy msg was old and or joint_states is old
 
+    void runsim();
+
+    void runreal();
+
     void setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory);
 
     void printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal);
@@ -202,6 +199,7 @@ namespace perceptive_mpc
     void jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr);
 
     void pubControlInput(const MpcInterface::input_vector_t &controlInput);
+
     void pubControlInputZero();
 
     // make sure the forwarded integrated state is normalized to unit quaternion observation for the base rotation

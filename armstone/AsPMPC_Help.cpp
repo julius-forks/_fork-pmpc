@@ -42,8 +42,8 @@ bool AsPMPC::loopMonitor(ros::Rate rate)
     }
     
     checkDead(); //run constant check dead. 
-    if(isDead_){ // if dead then lets set trajectory to current one.
-      initializeCostDesiredTrajectory();//set to current
+    if (isDead_){
+      reinitMpc_=true;
     }
     rate.sleep();
   }
@@ -72,11 +72,6 @@ void AsPMPC::checkDead()
       ROS_WARN_STREAM_THROTTLE(1.0, "Joint states msg old. Stopping input publishing");
       return;
     }
-  }
-
-  if (!mpcControlEnabled_){
-    isDead_=true;
-    return;
   }
 
   isDead_=false; //not dead

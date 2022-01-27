@@ -17,15 +17,18 @@ using namespace perceptive_mpc;
 
 void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal)
 {
+  if (isDead_)
+  {
+    ROS_WARN("Print Trajectory called while isDead");
+    return;
+  }
+  ROS_WARN("MPC Action Server received a new trajectory task");
 
   ros::Rate r(5);
   auto feedback = m3dp_msgs::PrintTrajectoryFeedback();
   auto result = m3dp_msgs::PrintTrajectoryResult();
-
-  ROS_WARN("MPC Action Server received a new trajectory task");
   setTaskTrajectory(goal->trajectory);
-  mpcControlEnabled_ = true; //Start mpc
-  checkDead();
+
   double start_time;
   double end_time;
   {
@@ -39,16 +42,12 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
                   << "    end_time:          " << end_time << std::endl
                   << std::endl);
 
-  // TODO Ideally check if currenty is much further than the first one. If too far - dont start action server.
-
-  ROS_INFO("Entering AS loop");
   while (ros::ok())
   {
     // check that preempt has not been requested by the client
     if (taskTrajectoryActionServer_.isPreemptRequested())
     {
-      ROS_INFO("printTrajectoryAction: Preempted");
-      // set the action state to preempted
+      ROS_WARN("PrintTrajectory: Preempted");
       taskTrajectoryActionServer_.setPreempted();
       result.success = false;
       break;
@@ -56,7 +55,7 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
 
     if (isDead_)
     {
-      ROS_INFO("Action Server Stopped because Deadman");
+      ROS_WARN("PrintTrajectory: isDead detected");
       taskTrajectoryActionServer_.setPreempted();
       result.success = false;
       break;
@@ -64,7 +63,7 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
 
     if (ros::Time::now().toSec() > end_time + 1)
     {
-      ROS_INFO("Action Server Completed");
+      ROS_WARN("PrintTrajectory: Completed");
       result.success = true;
       taskTrajectoryActionServer_.setSucceeded(result);
       break;
@@ -76,22 +75,27 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
     feedback.obs_rate = mpcLoopRate_;
     feedback.completion = (ros::Time::now().toSec() - start_time) / (end_time - start_time);
     taskTrajectoryActionServer_.publishFeedback(feedback);
-    ROS_INFO("Feedback Published");
     r.sleep();
   }
-  ROS_INFO("Exiting AS loop");
-  initializeCostDesiredTrajectory();//set to current  
-  mpcControlEnabled_ = false; //stop mpc  
+  reinitMpc_ = true;
+  ROS_WARN("PrintTrajectory is done.");
 }
 
 void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
 {
+
+  reinitMpc_ = false;
+  while (ros::ok() && trajectoryUpdated_)
+  {
+    ros::Rate(100).sleep();
+  }
+
   boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
   costDesiredTrajectories_.clear();
   int N = taskTrajectory.points.size(); // point count
-  costDesiredTrajectories_.desiredStateTrajectory().resize(N + 1);
-  costDesiredTrajectories_.desiredTimeTrajectory().resize(N + 1);
-  costDesiredTrajectories_.desiredInputTrajectory().resize(N + 1);
+  costDesiredTrajectories_.desiredStateTrajectory().resize(N + 3);
+  costDesiredTrajectories_.desiredTimeTrajectory().resize(N + 3);
+  costDesiredTrajectories_.desiredInputTrajectory().resize(N + 3);
 
   // Get current
   auto currentBasePose = getBasePose();
@@ -102,23 +106,30 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
   reference0.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference0.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
 
-  for (int i = 0; i < N + 1; i++)
+  for (int i = 0; i < N + 3; i++)
   {
-
-    // Deal with feasibility. This should be a check rather than retime.
     if (i == 0)
-    {
+    {                                                                    //Current Now
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference0; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
       costDesiredTrajectories_.desiredTimeTrajectory()[i] = ros::Time::now().toSec();
     }
-    else
+    else if (i == 1)
     {
+      //Current in 1 sec
+      costDesiredTrajectories_.desiredStateTrajectory()[i] = reference0; //shove into desire STATE trajecotry
+      costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + 1;
+    }
+    else if (i == 2)
+    {
+      //trajectory start in 10 seconds
+      int j = 0;
       kindr::HomTransformQuatD desiredEEPose;
       kindr::HomTransformQuatD desiredBPose;
       reference_vector_t reference;
-      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i - 1].ee_pose, desiredEEPose);  // to kindr pose
-      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[i - 1].base_pose, desiredBPose); // to kindr pose
+      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[j].ee_pose, desiredEEPose);  // to kindr pose
+      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[j].base_pose, desiredBPose); // to kindr pose
       reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
@@ -126,17 +137,44 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + 10.0 + taskTrajectory.points[i - 1].time_from_start.toSec();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[1] + 10.0;
+    }
+    else
+    {
+      //Start moving at 11.5 seconds
+      int j = i - 3;
+      kindr::HomTransformQuatD desiredEEPose;
+      kindr::HomTransformQuatD desiredBPose;
+      reference_vector_t reference;
+      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[j].ee_pose, desiredEEPose);  // to kindr pose
+      kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[j].base_pose, desiredBPose); // to kindr pose
+      reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
+      reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
+      reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+      reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
+
+      costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
+      costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[2] + 1.5 + taskTrajectory.points[j].time_from_start.toSec();
     }
   }
   trajectoryUpdated_ = true;
-  ROS_WARN("Trajectory set (inside set trajectory)");
 }
 
-// This only for tests
 void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
 {
-  // USECASE put 0 base pose cost if you are using this
+  if (isDead_)
+  {
+    ROS_WARN("Desired pose set while is dead");
+    return;
+  }
+
+  reinitMpc_ = false;
+  while (ros::ok() && trajectoryUpdated_)
+  {
+    ros::Rate(100).sleep();
+  }
+
   geometry_msgs::Pose currentEndEffectorPose;
   kindr_ros::convertToRosGeometryMsg(getEndEffectorPose(), currentEndEffectorPose);
   kindr::HomTransformQuatD desiredPose;
@@ -172,13 +210,12 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
   auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
 
-  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 1;
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 2;
 
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;
 
-  trajectoryUpdated_ = true;  
-  mpcControlEnabled_= true;
+  trajectoryUpdated_ = true;
 }
 
 void AsPMPC::publishBaseTransform(const Observation &observation)
@@ -271,7 +308,7 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
     observation_.time() = ros::Time::now().toSec();
     lastJointStateTime_ = ros::Time::now().toSec();
   }
-  // TODO put FIR 0.6 0.35 0.05. Need to copy over things. 
+  // TODO put FIR 0.6 0.35 0.05. Need to copy over things.
 
   firstObservationUpdated_ = true;
   obsCount_++;
@@ -286,33 +323,30 @@ void AsPMPC::joyCb(const sensor_msgs::JoyPtr &msgPtr)
     if (msgPtr->axes[deadmanAxes_] > 0.9)
     {
       lastDeadManTime_ = ros::Time::now().toSec();
-      // ROS_WARN_STREAM_THROTTLE(1.0, "Set deadman to now");
     }
   }
 }
 
 void AsPMPC::pubControlInput(const MpcInterface::input_vector_t &controlInput)
 {
-  //If not dead -> publish
-  if (!isDead_)
-  {
-    baseTwistMsg_.linear.x = std::max(std::min(controlInput[0], 0.2), -0.2);
-    baseTwistMsg_.linear.y = std::max(std::min(controlInput[1], 0.2), -0.2);
-    baseTwistMsg_.angular.z = std::max(std::min(controlInput[2], 0.5), -0.5);
-
-    armJointVelMsg_.data.clear();
-    for (int i = 3; i < 8; i++)
-    {
-      armJointVelMsg_.data.push_back(std::max(std::min(controlInput[i], 1.), -1.));
-    }
-    armJointVelMsg_.data.push_back(0.0); //Last joint always 0.
-    baseTwistPub_.publish(baseTwistMsg_);
-    armJointVelPub_.publish(armJointVelMsg_);
-  }
-  else
+  if (isDead_)
   {
     pubControlInputZero();
+    return;
   }
+
+  baseTwistMsg_.linear.x = std::max(std::min(controlInput[0], 0.2), -0.2);
+  baseTwistMsg_.linear.y = std::max(std::min(controlInput[1], 0.2), -0.2);
+  baseTwistMsg_.angular.z = std::max(std::min(controlInput[2], 0.5), -0.5);
+
+  armJointVelMsg_.data.clear();
+  for (int i = 3; i < 8; i++)
+  {
+    armJointVelMsg_.data.push_back(std::max(std::min(controlInput[i], 1.), -1.));
+  }
+  armJointVelMsg_.data.push_back(0.0); //Last joint always 0.
+  baseTwistPub_.publish(baseTwistMsg_);
+  armJointVelPub_.publish(armJointVelMsg_);
 }
 
 void AsPMPC::pubControlInputZero()

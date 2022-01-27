@@ -16,42 +16,42 @@
 using namespace perceptive_mpc;
 
 AsPMPC::AsPMPC(const ros::NodeHandle &nh)
-    : nh_(nh), mpcUpdateFailed_(false), planAvailable_(false), kinematicInterfaceConfig_(), taskTrajectoryActionServer_(nh, "PrintTrajectory", boost::bind(&AsPMPC::printTrajectoryActionCb, this, _1), true) {}
-// Mutex cheat sheet
-// boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex
-// boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_); //Read mutex
+    : nh_(nh),
+      mpcUpdateFailed_(false),
+      planAvailable_(false),
+      kinematicInterfaceConfig_(),
+      taskTrajectoryActionServer_(nh, "PrintTrajectory", boost::bind(&AsPMPC::printTrajectoryActionCb, this, _1), false),
+      isDead_(true),      
+      mpcLoopRate_(0),
+      trackerLoopRate_(0),
+      obsRate_(0),
+      mpcLoopCount_(0),
+      obsCount_(0),
+      lastDeadManTime_(0.),
+      lastJointStateTime_(0.),
+      reinitMpc_(true),
+      firstObservationUpdated_(false),
+      asyncSpinner_(2)
+{
+}
 
 bool AsPMPC::run()
 {
 
-  // Explicit flag setting just in case:
-  isDead_=true;
-  mpcControlEnabled_ = false;
-  mpcLoopRate_ = 0;
-  trackerLoopRate_ = 0;
-  tfLoopLoopRate_ = 0;
-  obsRate_ = 0;
-  mpcLoopCount_ = 0;
-  trackerLoopCount_ = 0;
-  tfLoopCount_ = 0;
-  obsCount_ = 0;
-  lastDeadManTime_ = 0.;
-  lastJointStateTime_ = 0.;
-  //
   ROS_INFO("Loading Params");
   parseParameters();
   loadTransforms();
 
   // ROS API
   ROS_INFO("Initialise ROS API");
+  asyncSpinner_.start();
   goalPoseSubscriber_ = nh_.subscribe("desired_end_effector_pose_topic", 1, &AsPMPC::desiredEndEffectorPoseCb, this); // For motion of arm only.
   joySubscriber_ = nh_.subscribe("/ui/joy", 1, &AsPMPC::joyCb, this);
-  armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
-  baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
-  armStatePublisher_ = nh_.advertise<sensor_msgs::JointState>("joint_states", 10);
   pointsOnRobotPublisher_ = nh_.advertise<visualization_msgs::MarkerArray>("collision_points", 1, false);
   endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("est_ee_pose", 100);
-  
+  baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
+  armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
+
   // Initialise MPCInterface
   ROS_INFO("Initialise MPCInterface");
   AsPerceptiveMpcInterfaceConfig config;
@@ -62,64 +62,68 @@ bool AsPMPC::run()
   mpcInterface_ = std::make_shared<MpcInterface>(pmpcInterface_->getMpc());
   mpcInterface_->reset();
 
-  //Setting initial state
+  std::thread loopMonitorWorker(&AsPMPC::loopMonitor, this, ros::Rate(2.));
+  taskTrajectoryActionServer_.start();
   if (sim_mode_)
   {
-    observation_.state() = pmpcInterface_->getInitialState();
-    observation_.time() = ros::Time::now().toSec();
+    runsim();
   }
   else
   {
-    firstObservationUpdated_ = false;
-    jointStatesSubscriber_ =
-        nh_.subscribe("joint_states", 1, &AsPMPC::jointStatesCb, this);
-    ROS_INFO("Waiting for obeservation to be updated");
-    ros::Rate _r(10); // 10 hz
-    while (ros::ok())
-    {
-      {
-        if (jointStatesSubscriber_.getNumPublishers() > 0 && firstObservationUpdated_)
-        {
-          break;
-        }
-      }
-      ros::spinOnce();
-      _r.sleep();
-    }
+    runreal();
+  }  
+  loopMonitorWorker.join();
+  ros::waitForShutdown();
+  return true;
+}
+
+void AsPMPC::runsim()
+{
+
+  armStatePublisher_ = nh_.advertise<sensor_msgs::JointState>("joint_states", 10);
+
+  ROS_INFO("Waiting for joint rest of system to come online...");
+  while (ros::ok() && armStatePublisher_.getNumSubscribers() == 0)
+  {
+    ros::Rate(1).sleep();
   }
-  //observation_ should now be updated by the joint cb or set via initial
-  ROS_INFO("Observation was updated; Setting up MPC loops");
+
+  observation_.state() = pmpcInterface_->getInitialState();
+  observation_.time() = ros::Time::now().toSec();
   optimalState_ = observation_.state();
   setCurrentObservation(observation_);
-
-  ROS_INFO_STREAM("Starting from initial state: " << observation_.state().transpose());
-  ROS_INFO_STREAM("Initial time (delta): " << observation_.time());
-  
-  initializeCostDesiredTrajectory();      
+  initializeCostDesiredTrajectory();
 
   // Tracker worker
   std::thread trackerWorker(&AsPMPC::trackerLoop, this, ros::Rate(controlLoopFrequency_));
-
-  // Mpc update worker
   std::thread mpcUpdateWorker(&AsPMPC::mpcUpdate, this, ros::Rate(mpcUpdateFrequency_));
+  std::thread tfUpdateWorker(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));
 
-  if (sim_mode_)
-  {
-    tfUpdateWorker_ = new std::thread(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));
-  }
-
-  //Thread monitor
-  std::thread loopMonitorWorker(&AsPMPC::loopMonitor, this, ros::Rate(2.));
-  ros::spin(); //Blocks. When action server is executed it takes over ros spins.
-  // Wait for threads to end
   trackerWorker.join(); //Waits for threads
   mpcUpdateWorker.join();
-  if (sim_mode_)
+  tfUpdateWorker.join();
+  return;
+}
+
+void AsPMPC::runreal()
+{
+  jointStatesSubscriber_ = nh_.subscribe("joint_states", 1, &AsPMPC::jointStatesCb, this);
+
+  ROS_INFO("Waiting for obeservation to be updated");
+  while (ros::ok() && !firstObservationUpdated_)
   {
-    tfUpdateWorker_->join();
+    ros::Rate(1).sleep();
   }
-  loopMonitorWorker.join();
-  return true;
+
+  setCurrentObservation(observation_);
+  initializeCostDesiredTrajectory();
+
+  std::thread trackerWorker(&AsPMPC::trackerLoop, this, ros::Rate(controlLoopFrequency_));
+  std::thread mpcUpdateWorker(&AsPMPC::mpcUpdate, this, ros::Rate(mpcUpdateFrequency_));
+
+  trackerWorker.join(); //Waits for threads
+  mpcUpdateWorker.join();
+  return;
 }
 
 void AsPMPC::parseParameters()
@@ -146,7 +150,6 @@ void AsPMPC::parseParameters()
   controlLoopFrequency_ = pNh.param<double>("control_loop_frequency", 100);
   // Other params
   deadmanAxes_ = pNh.param<double>("deadman_axes", 4);
-  lastDeadManTime_ = 0.;
 }
 
 bool AsPMPC::trackerLoop(ros::Rate rate)
@@ -162,23 +165,18 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
         return false;
       }
 
-      // This essentially waits for first plan. Im also using it as enable/disable
-      if ((!planAvailable_) )
-      {        
+      if (!planAvailable_)
+      {
         rate.sleep();
         continue;
       }
 
-      // MAKE A COPY OF OBSERVATION
       Observation observation;
       {
-
         if (sim_mode_)
         {
-          boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex          
-          if(!isDead_){
-            observation_.state() = optimalState_;             
-          }
+          boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex
+          observation_.state() = optimalState_;
           observation_.time() = ros::Time::now().toSec();
           observation = observation_;
         }
@@ -192,46 +190,24 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
       MpcInterface::input_vector_t controlInput;
       MpcInterface::state_vector_t optimalState;
       size_t subsystem;
-      try
-      {
-        if (sim_mode_)
-        {
-          mpcInterface_->updatePolicy();
-          mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
-        }
-        else
-        {
-          mpcInterface_->updatePolicy();
-          mpcInterface_->evaluatePolicy(ros::Time::now().toSec(), observation.state(), optimalState, controlInput, subsystem);
-          pubControlInput(controlInput);
-        }
-      }
-      catch (const std::runtime_error &ex)
-      {
-        ROS_ERROR_STREAM("runtime_error occured!");
-        ROS_ERROR_STREAM("Caught exception while calling [mpcInterface_->evaluatePolicy]. Message: " << ex.what());
-        return false;
-      }
-      catch (const std::exception &ex)
-      {
-        ROS_ERROR_STREAM("exception occured!");
-        ROS_ERROR_STREAM("Caught exception while calling [mpcInterface_->evaluatePolicy]. Message: " << ex.what());
-        return false;
-      }
+
+      mpcInterface_->updatePolicy();
+      mpcInterface_->evaluatePolicy(observation.time(), observation.state(), optimalState, controlInput, subsystem);
+      pubControlInput(controlInput);
 
       ROS_INFO_STREAM_THROTTLE(5.0, std::endl
-        << "    Observation time:          " << observation.time() << std::endl
-        << "    run time:          " << observation.time() << std::endl
-        << "    current_state_base_q: " << observation.state().transpose().head<4>() << std::endl
-        << "    current_state_base_xyz: " << observation.state().transpose().head<7>().tail<3>() << std::endl
-        << "    current_state_arm_joints: " << observation.state().transpose().tail<6>() << std::endl
-        << "    optimalState_base_q:  " << optimalState.transpose().head<4>() << std::endl
-        << "    optimalState_base_xyz:  " << optimalState.transpose().head<7>().tail<3>() << std::endl
-        << "    optimalState_arm_joints:  " << optimalState.transpose().tail<6>() << std::endl
-        << "    controlInput_base_xyth:  " << controlInput.transpose().head<3>() << std::endl
-        << "    controlInput_arm_vel:  " << controlInput.transpose().tail<6>() << std::endl
-        << "    Full Control INput:  " << controlInput.transpose() << std::endl
-        << std::endl);
+                                        << "    Observation time:          " << observation.time() << std::endl
+                                        << "    run time:          " << observation.time() << std::endl
+                                        << "    current_state_base_q: " << observation.state().transpose().head<4>() << std::endl
+                                        << "    current_state_base_xyz: " << observation.state().transpose().head<7>().tail<3>() << std::endl
+                                        << "    current_state_arm_joints: " << observation.state().transpose().tail<6>() << std::endl
+                                        << "    optimalState_base_q:  " << optimalState.transpose().head<4>() << std::endl
+                                        << "    optimalState_base_xyz:  " << optimalState.transpose().head<7>().tail<3>() << std::endl
+                                        << "    optimalState_arm_joints:  " << optimalState.transpose().tail<6>() << std::endl
+                                        << "    controlInput_base_xyth:  " << controlInput.transpose().head<3>() << std::endl
+                                        << "    controlInput_arm_vel:  " << controlInput.transpose().tail<6>() << std::endl
+                                        << "    Full Control INput:  " << controlInput.transpose() << std::endl
+                                        << std::endl);
       optimalState_ = optimalState;
     }
     catch (const std::runtime_error &ex)
@@ -262,15 +238,17 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
       rate.sleep();
       continue;
     }
-  
+
     try
     {
+      if (reinitMpc_)
+      {
+        initializeCostDesiredTrajectory();
+      }
       if (trajectoryUpdated_)
       {
-
         boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
         mpcInterface_->setTargetTrajectories(costDesiredTrajectories_);
-        // ROS_INFO("MPC trajectory updated (inside mpc loop)");
         trajectoryUpdated_ = false;
       }
       {
@@ -279,7 +257,7 @@ bool AsPMPC::mpcUpdate(ros::Rate rate)
       }
       if (esdfCachingServer_)
       {
-        esdfCachingServer_->updateInterpolator(); 
+        esdfCachingServer_->updateInterpolator();
       }
       mpcInterface_->advanceMpc();
     }
@@ -343,9 +321,6 @@ bool AsPMPC::tfUpdate(ros::Rate rate)
 
 void AsPMPC::setCurrentObservation(const Observation &observation)
 {
-  //Copies observation into mpc
-  // the quaternion is not closed under addition
-  // the state integration will make the quaternion non unique as the simulatoin goes on
   Eigen::Quaterniond currentBaseRotation = Eigen::Quaterniond(observation.state().head<4>());
   currentBaseRotation.normalize();
   mpcInterface_->setCurrentObservation(observation);
@@ -376,8 +351,6 @@ void AsPMPC::initializeCostDesiredTrajectory()
   costDesiredTrajectories_.desiredStateTrajectory().push_back(reference);
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
   costDesiredTrajectories_.desiredInputTrajectory().push_back(InputVector::Zero());
-  // costDesiredTrajectories_.display();
-  ROS_WARN("Trajectory reset to self");
-
+  ROS_WARN_STREAM_THROTTLE(1.0, "initializeCostDesiredTrajectory set");
   trajectoryUpdated_ = true;
 }
