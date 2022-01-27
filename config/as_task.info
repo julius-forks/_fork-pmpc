@@ -104,8 +104,8 @@ mpc
   rosMsgTimeWindow               200    ; [ms]
   adaptiveRosMsgTimeWindow       0
 
-  mpcDesiredFrequency            20      ; [Hz]
-  mrtDesiredFrequency            400     ; [Hz]
+  mpcDesiredFrequency            -1      ; [Hz]
+  mrtDesiredFrequency            -1     ; [Hz]
 }
 
 ;interface settings

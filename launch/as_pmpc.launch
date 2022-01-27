@@ -24,11 +24,11 @@
     <param name="base_com" value="[0,0,0.086]" />
     <param name="base_mass" value="35" />
     <!--  -->
-    <param name="mpc_update_frequency" value="100" />
+    <param name="mpc_update_frequency" value="50" />
     <param name="tf_update_frequency" value="50" />
     <param name="max_linear_velocity" value="1.0" />
     <param name="max_angular_velocity" value="1.0" />
-    <param name="control_loop_frequency" value="50" />
+    <param name="control_loop_frequency" value="100" />
     <!-- deadman -->
     <param if="$(arg sim)" name="deadman_axes" value="6" />
     <param unless="$(arg sim)" name="deadman_axes" value="4" />

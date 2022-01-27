@@ -23,10 +23,10 @@ bool AsPMPC::loopMonitor(ros::Rate rate)
     double dt = time - monitorTimeLast_;
 
     {
-      mpcLoopRate_=(int)std::round(((double)mpcLoopCount_) / dt);
-      trackerLoopRate_=(int)std::round(((double)trackerLoopCount_) / dt);
-      tfLoopLoopRate_=(int)std::round(((double)tfLoopCount_) / dt);
-      obsRate_=(int)std::round(((double)obsCount_) / dt);
+      mpcLoopRate_ = (int)std::round(((double)mpcLoopCount_) / dt);
+      trackerLoopRate_ = (int)std::round(((double)trackerLoopCount_) / dt);
+      tfLoopLoopRate_ = (int)std::round(((double)tfLoopCount_) / dt);
+      obsRate_ = (int)std::round(((double)obsCount_) / dt);
       obsCount_ = 0;
       tfLoopCount_ = 0;
       trackerLoopCount_ = 0;
@@ -35,21 +35,21 @@ bool AsPMPC::loopMonitor(ros::Rate rate)
       ROS_INFO_STREAM(std::endl
                       << "    MPC loop rate:     " << mpcLoopRate_ << std::endl
                       << "    tracker loop rate: " << trackerLoopRate_ << std::endl
-                      << "    TF loop rate:     " <<tfLoopLoopRate_ << std::endl
+                      << "    TF loop rate:     " << tfLoopLoopRate_ << std::endl
                       << "    obs  rate:     " << obsRate_ << std::endl
                       << std::endl);
       monitorTimeLast_ = time;
     }
-    
-    checkDead(); //run constant check dead. 
-    if (isDead_){
-      reinitMpc_=true;
+
+    checkDead(); //run constant check dead.
+    if (isDead_)
+    {
+      reinitMpc_ = true;
     }
     rate.sleep();
   }
   return true;
 }
-
 
 void AsPMPC::checkDead()
 {
@@ -59,24 +59,24 @@ void AsPMPC::checkDead()
     if (ros::Time::now().toSec() > lastDeadManTime_ + 0.15)
     {
       ROS_WARN_STREAM_THROTTLE(1.0, "DEADMAN SWITCH RELEASED. Stopping input publishing");
-      isDead_=true; // dead
+      isDead_ = true; // dead
       return;
     }
   }
 
-  if(!sim_mode_){
+  if (!sim_mode_)
+  {
     boost::shared_lock<boost::shared_mutex> lockGuard(lastJointStateTimeMutex_); //Read mutex
     if (ros::Time::now().toSec() > lastJointStateTime_ + 0.15)
     {
-      isDead_=true; // dead
+      isDead_ = true; // dead
       ROS_WARN_STREAM_THROTTLE(1.0, "Joint states msg old. Stopping input publishing");
       return;
     }
   }
 
-  isDead_=false; //not dead
+  isDead_ = false; //not dead
 }
-
 
 kindr::HomTransformQuatD AsPMPC::getEndEffectorPose()
 {
