@@ -120,9 +120,11 @@ void AsPMPC::runreal()
 
   std::thread trackerWorker(&AsPMPC::trackerLoop, this, ros::Rate(controlLoopFrequency_));
   std::thread mpcUpdateWorker(&AsPMPC::mpcUpdate, this, ros::Rate(mpcUpdateFrequency_));
+  std::thread tfUpdateWorker(&AsPMPC::tfUpdate, this, ros::Rate(tfUpdateFrequency_));
 
   trackerWorker.join(); //Waits for threads
   mpcUpdateWorker.join();
+  tfUpdateWorker.join();
   return;
 }
 
@@ -293,8 +295,10 @@ bool AsPMPC::tfUpdate(ros::Rate rate)
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
         currentObservation = observation_;
       }
-      publishBaseTransform(currentObservation);
-      publishArmState(currentObservation);
+      if(sim_mode_){
+        publishBaseTransform(currentObservation);
+        publishArmState(currentObservation);
+      }      
       publishEndEffectorPose();
       if (pointsOnRobot_)
       {
