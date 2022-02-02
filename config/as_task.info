@@ -133,8 +133,11 @@ initialState
   (12,0)  -1.57079632679     ; arm_6
 }
 
-base_ee_tracking_task
+ee_tracking_task
 {
+
+  use     1
+
   ; state weight matrix
   Q
   {
@@ -146,10 +149,6 @@ base_ee_tracking_task
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
-    (6,6) 1.0  ; bx
-    (7,7) 1.0  ; by
-    (8,8) 1.0  ; byaw
-
   }
   ; control weight matrix
   R
@@ -178,11 +177,104 @@ base_ee_tracking_task
     (3,3) 1.0  ; roll
     (4,4) 1.0  ; pitch
     (5,5) 0.0  ; yaw
+  }
+}
+
+base_tracking_task
+{
+
+  use     1
+
+  ; state weight matrix
+  Q
+  {
+    scaling 1e+1
+
+    (0,0) 1.0  ; x
+    (1,1) 1.0  ; y  
+    (2,2) 1.0  ; yaw
+  }
+  ; control weight matrix
+  R
+  {
+    scaling 1e+0
+
+    (0,0) 10.0  ; base_drive x
+    (1,1) 10.0  ; base_drive y
+    (2,2) 10.0  ; base_turn
+    (3,3) 0.0  ; arm_1
+    (4,4) 0.0  ; arm_2
+    (5,5) 0.0  ; arm_3
+    (6,6) 0.0  ; arm_4
+    (7,7) 0.0  ; arm_5
+    (8,8) 0.0  ; arm_6
+  }
+
+  ; final state weight matrix
+  Q_final
+  {
+    scaling 1e+1
+
+    (0,0) 1.0  ; x
+    (1,1) 1.0  ; y  
+    (2,2) 1.0  ; yaw
+  }
+}
+
+base_ee_tracking_task
+{
+
+  use     0 ;
+
+  ; state weight matrix
+  Q
+  {
+    scaling 1e+1
+
+    (0,0) 10.0  ; x
+    (1,1) 20.0  ; y
+    (2,2) 30.0  ; z
+    (3,3) 1.0  ; roll
+    (4,4) 1.0  ; pitch
+    (5,5) 0.0  ; yaw
+    (6,6) 1.0  ; bx
+    (7,7) 1.0  ; by
+    (8,8) 1.0  ; byaw    
+  }
+
+  ; control weight matrix
+  R
+  {
+    scaling 1e+0
+
+    (0,0) 10.0  ; base_drive x
+    (1,1) 20.0  ; base_drive y
+    (2,2) 30.0  ; base_turn
+    (3,3) 1.0  ; arm_1
+    (4,4) 1.0  ; arm_2
+    (5,5) 1.0  ; arm_3
+    (6,6) 1.0  ; arm_4
+    (7,7) 1.0  ; arm_5
+    (8,8) 1.0  ; arm_6
+  }
+
+  ; final state weight matrix
+  Q_final
+  {
+    scaling 0e+1
+
+    (0,0) 10.0  ; x
+    (1,1) 20.0  ; y
+    (2,2) 30.0  ; z
+    (3,3) 1.0  ; roll
+    (4,4) 1.0  ; pitch
+    (5,5) 0.0  ; yaw
     (6,6) 1.0  ; bx
     (7,7) 1.0  ; by
     (8,8) 1.0  ; byaw
   }
 }
+
 
 regularization
 {

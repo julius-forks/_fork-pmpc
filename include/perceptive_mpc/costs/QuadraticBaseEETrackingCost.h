@@ -47,7 +47,7 @@ namespace perceptive_mpc {
 struct QuadraticBaseEETrackingCostConfig {
   Eigen::Matrix<double, 9, 9> base_ee_Q = Eigen::Matrix<double, 9, 9>::Identity();//base x,y ,yaw, ee xyz, rpy
   Eigen::Matrix<double, 9, 9> base_ee_QFinal = Eigen::Matrix<double, 9, 9>::Zero();//base x,y ,yaw, ee xyz, rpy
-  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
+  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> base_ee_R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
   Eigen::Matrix4d wrist2ToEETransform = Eigen::Matrix4d::Identity();
   Eigen::Matrix4d baseToArmMount = Eigen::Matrix4d::Identity();
   std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics;
@@ -74,7 +74,7 @@ class QuadraticBaseEETrackingCost
    * Constructor
    */
   QuadraticBaseEETrackingCost(const QuadraticBaseEETrackingCostConfig& config)
-      : base_ee_Q_(config.base_ee_Q), base_ee_QFinal_(config.base_ee_QFinal), R_(config.R), kinematics_(config.kinematics) {}
+      : base_ee_Q_(config.base_ee_Q), base_ee_QFinal_(config.base_ee_QFinal), base_ee_R_(config.base_ee_R), kinematics_(config.kinematics) {}
 
   /*
    * Copy constructor
@@ -160,7 +160,7 @@ class QuadraticBaseEETrackingCost
 
  private:
   const state_cost_matrix_t base_ee_Q_;
-  const input_matrix_t R_;
+  const input_matrix_t base_ee_R_;
   const state_cost_matrix_t base_ee_QFinal_;
   const std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics_;
 };

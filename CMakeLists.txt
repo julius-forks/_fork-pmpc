@@ -75,6 +75,7 @@ add_library(${PROJECT_NAME}
   src/SystemDynamics.cpp
   src/costs/QuadraticEndeffectorTrackingCost.cpp
   src/costs/QuadraticBaseEETrackingCost.cpp
+  src/costs/QuadraticBaseTrackingCost.cpp
   src/costs/BaseAvoidanceCost.cpp
   src/costs/VoxbloxCost.cpp
   src/costs/PointsOnRobot.cpp  
