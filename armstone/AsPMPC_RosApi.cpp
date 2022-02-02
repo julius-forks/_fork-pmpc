@@ -33,7 +33,7 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
   double end_time;
   {
     boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-    start_time = costDesiredTrajectories_.desiredTimeTrajectory()[1]; //Note I'm ignoring first point
+    start_time = costDesiredTrajectories_.desiredTimeTrajectory()[2]; //Note I'm ignoring first point
     end_time = costDesiredTrajectories_.desiredTimeTrajectory().back();
   }
 
