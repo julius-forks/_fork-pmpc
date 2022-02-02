@@ -41,7 +41,8 @@ enum Definitions : size_t {
   ARM_INPUT_DIM_ = 6,
   INPUT_DIM_ = BASE_INPUT_DIM_ + ARM_INPUT_DIM_,  // \dot{ [B_x_b \theta_b \phi^T]^T }
   POSE_DIM = 7,    
-  REFERENCE_DIM = POSE_DIM + BASE_STATE_DIM_
+  ELIPSE_DIM = 3,      
+  REFERENCE_DIM = POSE_DIM + BASE_STATE_DIM_ + ELIPSE_DIM
 };
 
 }  // namespace perceptive_mpc

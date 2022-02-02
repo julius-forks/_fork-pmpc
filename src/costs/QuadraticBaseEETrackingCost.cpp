@@ -136,7 +136,7 @@ QuadraticBaseEETrackingCost::dynamic_vector_t QuadraticBaseEETrackingCost::inter
 {
   const auto &desiredTimeTrajectory = costDesiredTrajectoriesPtr_->desiredTimeTrajectory();
   const auto &desiredStateTrajectory = costDesiredTrajectoriesPtr_->desiredStateTrajectory();
-  return interpolateBaseArmTrajectory(desiredTimeTrajectory, desiredStateTrajectory, time);
+  return interpolateBaseArmElipseTrajectory(desiredTimeTrajectory, desiredStateTrajectory, time);
 }
 
 Eigen::Quaternion<QuadraticBaseEETrackingCost::ad_scalar_t> QuadraticBaseEETrackingCost::matrixToQuaternion(

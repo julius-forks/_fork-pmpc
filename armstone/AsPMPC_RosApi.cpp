@@ -103,8 +103,8 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
   reference_vector_t reference0;
   reference0.head<Definitions::POSE_DIM>().head<4>() = currentEEPose.getRotation().toImplementation().coeffs();
   reference0.head<Definitions::POSE_DIM>().tail<3>() = currentEEPose.getPosition().toImplementation();
-  reference0.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
-  reference0.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference0.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference0.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
 
   for (int i = 0; i < N + 3; i++)
   {
@@ -132,8 +132,8 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[j].base_pose, desiredBPose); // to kindr pose
       reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
-      reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
-      reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
+      reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+      reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
@@ -150,8 +150,8 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       kindr_ros::convertFromRosGeometryMsg(taskTrajectory.points[j].base_pose, desiredBPose); // to kindr pose
       reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
-      reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
-      reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = desiredBPose.getPosition().toImplementation();
+      reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
+      reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
@@ -193,14 +193,14 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   reference_vector_t reference0;
   reference0.head<Definitions::POSE_DIM>().head<4>() = currentPose.getRotation().toImplementation().coeffs();
   reference0.head<Definitions::POSE_DIM>().tail<3>() = currentPose.getPosition().toImplementation();
-  reference0.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
-  reference0.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference0.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference0.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
 
   reference_vector_t reference1;
   reference1.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
   reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
-  reference1.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
-  reference1.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference1.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference1.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
 
   costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
   costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;

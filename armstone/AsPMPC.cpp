@@ -21,7 +21,7 @@ AsPMPC::AsPMPC(const ros::NodeHandle &nh)
       planAvailable_(false),
       kinematicInterfaceConfig_(),
       taskTrajectoryActionServer_(nh, "PrintTrajectory", boost::bind(&AsPMPC::printTrajectoryActionCb, this, _1), false),
-      isDead_(true),      
+      isDead_(true),
       mpcLoopRate_(0),
       trackerLoopRate_(0),
       obsRate_(0),
@@ -71,7 +71,7 @@ bool AsPMPC::run()
   else
   {
     runreal();
-  }  
+  }
   loopMonitorWorker.join();
   ros::waitForShutdown();
   return true;
@@ -295,10 +295,11 @@ bool AsPMPC::tfUpdate(ros::Rate rate)
         boost::shared_lock<boost::shared_mutex> lockGuard(observationMutex_);
         currentObservation = observation_;
       }
-      if(sim_mode_){
+      if (sim_mode_)
+      {
         publishBaseTransform(currentObservation);
         publishArmState(currentObservation);
-      }      
+      }
       publishEndEffectorPose();
       if (pointsOnRobot_)
       {
@@ -340,8 +341,8 @@ void AsPMPC::initializeCostDesiredTrajectory()
 
   reference.head<Definitions::POSE_DIM>().head<4>() = currentEndEffectorPose.getRotation().getUnique().toImplementation().coeffs();
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
-  reference.tail<Definitions::BASE_STATE_DIM_>().head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
-  reference.tail<Definitions::BASE_STATE_DIM_>().tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
+  reference.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
 
   Observation observation;
   {
