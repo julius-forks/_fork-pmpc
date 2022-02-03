@@ -105,6 +105,9 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
   reference0.head<Definitions::POSE_DIM>().tail<3>() = currentEEPose.getPosition().toImplementation();
   reference0.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference0.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference0.tail<3>().head<1>() = 0.1; //+- 10cm
+  reference0.tail<2>().head<1>() = 0.1;//+- 10cm
+  reference0.tail<1>() = 0.1;//+- 5deg
 
   for (int i = 0; i < N + 3; i++)
   {
@@ -134,6 +137,9 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
       reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
+      reference0.tail<3>().head<1>() = taskTrajectory.points[j].tol_elipse.x_tol;
+      reference0.tail<2>().head<1>() = taskTrajectory.points[j].tol_elipse.y_tol;
+      reference0.tail<1>() = taskTrajectory.points[j].tol_elipse.th_tol;
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();

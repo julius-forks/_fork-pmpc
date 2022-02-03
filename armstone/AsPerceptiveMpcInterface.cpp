@@ -32,8 +32,7 @@
 #include <perceptive_mpc/costs/QuadraticBaseEETrackingCost.h>
 #include <perceptive_mpc/costs/QuadraticEndeffectorTrackingCost.h>
 #include <perceptive_mpc/costs/QuadraticBaseTrackingCost.h>
-// #include <perceptive_mpc/costs/QuadraticBaseBarrierTrackingCost.h>
-
+#include <perceptive_mpc/costs/BaseElipseCost.h>
 #include <perceptive_mpc/costs/VoxbloxCost.h>
 #include <perceptive_mpc/kinematics/asArm/asArmKinematics.hpp>
 
@@ -158,6 +157,9 @@ namespace perceptive_mpc
 
       weightedCostFunctions.push_back(std::make_pair(1, base_Cost));
     }
+    /*
+    * Base EE combined 
+    */
 
     bool useBaseEECosts = false;
     ocs2::loadData::loadCppDataType(taskFile, "base_ee_tracking_task.use", useBaseEECosts);
@@ -185,6 +187,39 @@ namespace perceptive_mpc
       std::cerr << "useBaseEECosts: Loaded" << std::endl;
     }
 
+    /*
+    * Base Elipse
+    */
+
+    bool useBaseElipseCost = false;
+    ocs2::loadData::loadCppDataType(taskFile, "base_elipse_cost.use", useBaseElipseCost);
+    std::cerr << "useBaseElipseCost:       \n"
+              << useBaseElipseCost << std::endl;
+
+    if (useBaseElipseCost)
+    {
+      perceptive_mpc::BaseElipseCostConfig config;
+
+      ocs2::loadData::loadCppDataType(taskFile, "base_elipse_cost.delta", config.delta);
+      std::cerr << "BaseElipseCost.delta_:       \n"
+                << config.delta << std::endl;
+
+      ocs2::loadData::loadCppDataType(taskFile, "base_elipse_cost.mu", config.mu);
+      std::cerr << "BaseElipseCost.mu:       \n"
+                << config.mu << std::endl;
+
+      ocs2::loadData::loadCppDataType(taskFile, "base_elipse_cost.sigma", config.sigma);
+      std::cerr << "BaseElipseCost.sigma:       \n"
+                << config.sigma << std::endl;      
+
+      config.kinematics = kinematicsInterface_;
+      std::shared_ptr<BaseElipseCost> baseElipseCost(new BaseElipseCost(config));
+      baseElipseCost->initialize("base_elipse_cost", libraryFolder_, modelSettings_.recompileLibraries_);
+
+      weightedCostFunctions.push_back(std::make_pair(1, baseElipseCost));
+    }
+    
+    
     bool useObstacleCost = false;
     ocs2::loadData::loadCppDataType(taskFile, "obstacle_cost.useObstacleCost", useObstacleCost);
     std::cerr << "useObstacleCost:       \n"

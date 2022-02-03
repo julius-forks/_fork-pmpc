@@ -46,7 +46,7 @@ slq
       meritFunctionRho             50.0
       constraintStepSize           1.0     ; 1.0
       displayInfo                  0
-      displayShortSummary          0
+      displayShortSummary          1
       debugPrintRollout            0
 
       AbsTolODE                      1e-5	;1e-6
@@ -183,7 +183,7 @@ ee_tracking_task
 base_tracking_task
 {
 
-  use     1
+  use     0
 
   ; state weight matrix
   Q
@@ -273,6 +273,17 @@ base_ee_tracking_task
     (7,7) 1.0  ; by
     (8,8) 1.0  ; byaw
   }
+}
+
+base_elipse_cost
+{
+    use     1
+
+    ; penalty function parameters
+    delta               1e-2
+    mu                  0.5e-3
+    sigma               10
+
 }
 
 

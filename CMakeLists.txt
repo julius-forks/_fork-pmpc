@@ -77,6 +77,7 @@ add_library(${PROJECT_NAME}
   src/costs/QuadraticBaseEETrackingCost.cpp
   src/costs/QuadraticBaseTrackingCost.cpp
   src/costs/BaseAvoidanceCost.cpp
+  src/costs/BaseElipseCost.cpp
   src/costs/VoxbloxCost.cpp
   src/costs/PointsOnRobot.cpp  
   src/OperatingPoint.cpp  
