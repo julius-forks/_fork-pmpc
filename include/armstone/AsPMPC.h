@@ -72,6 +72,7 @@ namespace perceptive_mpc
     typedef ocs2::SystemObservation<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> Observation;
     typedef ocs2::MPC_MRT_Interface<perceptive_mpc::STATE_DIM_, perceptive_mpc::INPUT_DIM_> MpcInterface;
     typedef MpcInterface::input_vector_t InputVector;
+    
     using reference_vector_t = Eigen::Matrix<double, Definitions::REFERENCE_DIM, 1>;
 
     explicit AsPMPC(const ros::NodeHandle &nh = ros::NodeHandle());

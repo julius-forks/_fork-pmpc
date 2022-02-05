@@ -67,6 +67,9 @@ size_t BaseAvoidanceCost::getNumTerminalParameters() const {
   return 0;
 }
 
+// if x > 0, exp1; else exp2
+//  CppAD::CondExpGt(x, azero, <exp1>, <exp2>);
+
 BaseAvoidanceCost::ad_scalar_t BaseAvoidanceCost::obstacle1D(const ad_scalar_t& x, const double& width) const {
   ad_scalar_t a = x - width / 2;
   ad_scalar_t b = -x - width / 2;

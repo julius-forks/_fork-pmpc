@@ -29,14 +29,14 @@
 
 #pragma once
 
-#include <ocs2_core/cost/QuadraticGaussNewtonCostBaseAD.h>
+#include <ocs2_core/cost/RelaxedBarrierCost.h>
 #include <ocs2_robotic_tools/common/RotationTransforms.h>
 
 #include <algorithm>
 #include <cmath>
+#include <perceptive_mpc/kinematics/KinematicsInterface.hpp>
 #include <utility>
 
-#include <perceptive_mpc/kinematics/KinematicsInterface.hpp>
 #include "perceptive_mpc/Definitions.h"
 
 // CPPAD stuff
@@ -44,21 +44,20 @@
 
 namespace perceptive_mpc {
 
-struct QuadraticEndeffectorTrackingCostConfig {
-  Eigen::Matrix<double, 6, 6> ee_Q = Eigen::Matrix<double, 6, 6>::Identity();
-  Eigen::Matrix<double, 6, 6> ee_QFinal = Eigen::Matrix<double, 6, 6>::Zero();
-  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> ee_R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
-  Eigen::Matrix4d wrist2ToEETransform = Eigen::Matrix4d::Identity();
-  Eigen::Matrix4d baseToArmMount = Eigen::Matrix4d::Identity();
+struct BaseElipseCostConfig { 
+
+  double sigma = 10;
+  double mu = 1e-3;
+  double delta = 1e-4;
+
   std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics;
 };
 
-class QuadraticEndeffectorTrackingCost
-    : public ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 6 + Definitions::INPUT_DIM_, 6> {
+class BaseElipseCost : public ocs2::RelaxedBarrierCost<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 3, 0> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 6 + Definitions::INPUT_DIM_, 6> BASE;
+  typedef ocs2::RelaxedBarrierCost<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 3, 0> BASE;
   using typename BASE::ad_scalar_t;
   using typename BASE::dynamic_vector_t;
   using typename BASE::input_matrix_t;
@@ -66,28 +65,37 @@ class QuadraticEndeffectorTrackingCost
   using typename BASE::scalar_t;
   using typename BASE::state_matrix_t;
   using typename BASE::state_vector_t;
-  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 6, 6>;
+  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 3, 3>;
   using typename BASE::intermediate_cost_vector_t;
   using typename BASE::terminal_cost_vector_t;
 
   /**
    * Constructor
    */
-  QuadraticEndeffectorTrackingCost(const QuadraticEndeffectorTrackingCostConfig& config)
-      : ee_Q_(config.ee_Q), ee_QFinal_(config.ee_QFinal), ee_R_(config.ee_R), kinematics_(config.kinematics) {}
+  BaseElipseCost(BaseElipseCostConfig config = BaseElipseCostConfig());
 
   /*
    * Copy constructor
    * @param rhs
    */
-  QuadraticEndeffectorTrackingCost(const QuadraticEndeffectorTrackingCost& rhs) = default;
+  BaseElipseCost(const BaseElipseCost& rhs) = default;
 
   /**
    * Default destructor
    */
-  ~QuadraticEndeffectorTrackingCost() override = default;
+  ~BaseElipseCost() override = default;
 
-  QuadraticEndeffectorTrackingCost* clone() const override;
+  BaseElipseCost* clone() const override;
+
+  // overwrite getDerivative methods and return 0 when we know, that they should always return zero
+  void getIntermediateCostDerivativeTime(scalar_t& dLdt) override final;
+  void getIntermediateCostDerivativeInput(input_vector_t& dLdu) override final;
+  void getIntermediateCostSecondDerivativeInput(input_matrix_t& dLduu) override;
+  void getIntermediateCostDerivativeInputState(input_state_matrix_t& dLdux) override;
+  void getTerminalCost(scalar_t& Phi) override final;
+  void getTerminalCostDerivativeTime(scalar_t& dPhidt) override final;
+  void getTerminalCostDerivativeState(state_vector_t& dPhidx) override final;
+  void getTerminalCostSecondDerivativeState(state_matrix_t& dPhidxx) override;
 
  protected:
   /**
@@ -105,18 +113,21 @@ class QuadraticEndeffectorTrackingCost
   virtual void intermediateCostFunction(ad_scalar_t time, const ad_dynamic_vector_t& state, const ad_dynamic_vector_t& input,
                                         const ad_dynamic_vector_t& parameters, ad_intermediate_cost_vector_t& costValues) const override;
 
+  
   /**
-   * Interface method to the terminal cost function. This method should be implemented by the derived class.
+   * Interpolate the reference trajectory
    *
-   * @tparam scalar type. All the floating point operations should be with this type.
-   * @param [in] time: time.
-   * @param [in] state: state vector.
-   * @param [in] stateDesired: desired state vector.
-   * @param [in] logicVariable: logic variable vector.
-   * @param [out] costValue: cost value.
+   * @return The cost function parameters at a certain time
    */
-  virtual void terminalCostFunction(ad_scalar_t time, const ad_dynamic_vector_t& state, const ad_dynamic_vector_t& parameters,
-                                    ad_terminal_cost_vector_t& costValues) const override;
+  dynamic_vector_t interpolateReference(BaseElipseCost::scalar_t time) const;
+  
+  /**
+   * Number of parameters for the intermediate cost function.
+   * This number must be remain constant after the model libraries are created
+   *
+   * @return number of parameters
+   */
+  virtual size_t getNumIntermediateParameters() const override;
 
   /**
    * Gets a user-defined cost parameters, applied to the intermediate costs
@@ -127,28 +138,6 @@ class QuadraticEndeffectorTrackingCost
   virtual dynamic_vector_t getIntermediateParameters(scalar_t time) const override;
 
   /**
-   * Number of parameters for the intermediate cost function.
-   * This number must be remain constant after the model libraries are created
-   *
-   * @return number of parameters
-   */
-  virtual size_t getNumIntermediateParameters() const override;
-
-  /**
-   * Gets a user-defined cost parameters, applied to the terminal costs
-   *
-   * @return The cost function parameters at a certain time
-   */
-  virtual dynamic_vector_t getTerminalParameters(scalar_t time) const override;
-
-  /**
-   * Interpolate the reference trajectory
-   *
-   * @return The cost function parameters at a certain time
-   */
-  dynamic_vector_t interpolateReference(QuadraticEndeffectorTrackingCost::scalar_t time) const;
-
-  /**
    * Number of parameters for the terminal cost function.
    * This number must be remain constant after the model libraries are created
    *
@@ -156,13 +145,12 @@ class QuadraticEndeffectorTrackingCost
    */
   virtual size_t getNumTerminalParameters() const override;
 
-  Eigen::Quaternion<ad_scalar_t> matrixToQuaternion(const Eigen::Matrix<ad_scalar_t, 3, 3>& R) const;
-
  private:
-  const state_cost_matrix_t ee_Q_;
-  const input_matrix_t ee_R_;
-  const state_cost_matrix_t ee_QFinal_;
-  const std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics_;
+
+  double sigma_ = 10;
+
+  std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics_;
+
 };
 
 }  // namespace perceptive_mpc

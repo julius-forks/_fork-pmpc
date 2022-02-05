@@ -33,7 +33,7 @@
 
 namespace perceptive_mpc {
 
-inline ocs2::dynamic_vector_t interpolateBaseArmTrajectory(const ocs2::scalar_array_t& timeTrajectory,
+inline ocs2::dynamic_vector_t interpolateBaseArmElipseTrajectory(const ocs2::scalar_array_t& timeTrajectory,
                                                         const ocs2::dynamic_vector_array_t& stateTrajectory, ocs2::scalar_t time) {
   ocs2::dynamic_vector_t reference((int)Definitions::REFERENCE_DIM);
 
@@ -57,21 +57,26 @@ inline ocs2::dynamic_vector_t interpolateBaseArmTrajectory(const ocs2::scalar_ar
   } else {
     double tau = (time - timeTrajectory[timeAIdx]) / (timeTrajectory[timeAIdx + 1] - timeTrajectory[timeAIdx]);
 
-    const Eigen::Quaterniond ee_quatA(stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM).head<4>());
-    const Eigen::Quaterniond ee_quatB(stateTrajectory[timeAIdx + 1].head((int)Definitions::POSE_DIM).head<4>());
+    const Eigen::Quaterniond ee_quatA(stateTrajectory[timeAIdx].segment<4>(0));//ee pose quat
+    const Eigen::Quaterniond ee_quatB(stateTrajectory[timeAIdx + 1].segment<4>(0));
 
-    const Eigen::Quaterniond base_quatA(stateTrajectory[timeAIdx].tail((int)Definitions::BASE_STATE_DIM_).head<4>());
-    const Eigen::Quaterniond base_quatB(stateTrajectory[timeAIdx + 1].tail((int)Definitions::BASE_STATE_DIM_).head<4>());
+    const Eigen::Quaterniond base_quatA(stateTrajectory[timeAIdx].segment<4>((int) Definitions::POSE_DIM));//should be the quat of base pose
+    const Eigen::Quaterniond base_quatB(stateTrajectory[timeAIdx + 1].segment<4>((int) Definitions::POSE_DIM));
+
 
     // interpolate the quaternions using slerp
-    reference.head<(int)Definitions::POSE_DIM>().head<4>() = ee_quatA.slerp(tau, ee_quatB).coeffs();
-    reference.tail<(int)Definitions::BASE_STATE_DIM_>().head<4>() = base_quatA.slerp(tau, base_quatB).coeffs();
+    reference.segment<4>(0) = ee_quatA.slerp(tau, ee_quatB).coeffs();// ee quat
+    reference.segment<4>((int) Definitions::POSE_DIM) = base_quatA.slerp(tau, base_quatB).coeffs();
     // interpolate cartesian space position linearly
-    reference.head<(int)Definitions::POSE_DIM>().tail<3>() = (1 - tau) * stateTrajectory[timeAIdx].head((int)Definitions::POSE_DIM).tail<3>() +
-                          tau * stateTrajectory[timeAIdx + 1].head((int)Definitions::POSE_DIM).tail<3>();
+    reference.segment<3>(4) = (1 - tau) * stateTrajectory[timeAIdx].segment<3>(4)+
+                          tau * stateTrajectory[timeAIdx + 1].segment<3>(4);
 
-    reference.tail<(int)Definitions::BASE_STATE_DIM_>().tail<3>() = (1 - tau) * stateTrajectory[timeAIdx].tail((int)Definitions::BASE_STATE_DIM_).tail<3>() +
-                          tau * stateTrajectory[timeAIdx + 1].tail((int)Definitions::BASE_STATE_DIM_).tail<3>();
+    reference.segment<3>(11) = (1 - tau) * stateTrajectory[timeAIdx].segment<3>(11) +
+                          tau * stateTrajectory[timeAIdx + 1].segment<3>(11);
+
+    reference.segment<3>(14) = (1 - tau) * stateTrajectory[timeAIdx].segment<3>(14) +
+                          tau * stateTrajectory[timeAIdx + 1].segment<3>(14);
+    
     /*    std::cerr << "t:" << t << ", tau:" << tau << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" <<
        desiredTimeTrajectory.back()
                   << std::endl << ", timeAIdx:" << timeAIdx << ", N:" << desiredTimeTrajectory.size() << ", t_idx:" <<

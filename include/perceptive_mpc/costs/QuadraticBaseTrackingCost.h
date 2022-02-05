@@ -44,21 +44,19 @@
 
 namespace perceptive_mpc {
 
-struct QuadraticEndeffectorTrackingCostConfig {
-  Eigen::Matrix<double, 6, 6> ee_Q = Eigen::Matrix<double, 6, 6>::Identity();
-  Eigen::Matrix<double, 6, 6> ee_QFinal = Eigen::Matrix<double, 6, 6>::Zero();
-  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> ee_R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();
-  Eigen::Matrix4d wrist2ToEETransform = Eigen::Matrix4d::Identity();
-  Eigen::Matrix4d baseToArmMount = Eigen::Matrix4d::Identity();
+struct QuadraticBaseTrackingCostConfig {
+  Eigen::Matrix<double, 3, 3> base_Q = Eigen::Matrix<double, 3, 3>::Identity();
+  Eigen::Matrix<double, 3, 3> base_QFinal = Eigen::Matrix<double, 3, 3>::Zero();
+  Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_> base_R = Eigen::Matrix<double, INPUT_DIM_, INPUT_DIM_>::Identity();  
   std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics;
 };
 
-class QuadraticEndeffectorTrackingCost
-    : public ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 6 + Definitions::INPUT_DIM_, 6> {
+class QuadraticBaseTrackingCost
+    : public ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 3 + Definitions::INPUT_DIM_, 3> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 6 + Definitions::INPUT_DIM_, 6> BASE;
+  typedef ocs2::QuadraticGaussNewtonCostBaseAD<Definitions::STATE_DIM_, Definitions::INPUT_DIM_, 3 + Definitions::INPUT_DIM_, 3> BASE;
   using typename BASE::ad_scalar_t;
   using typename BASE::dynamic_vector_t;
   using typename BASE::input_matrix_t;
@@ -66,28 +64,28 @@ class QuadraticEndeffectorTrackingCost
   using typename BASE::scalar_t;
   using typename BASE::state_matrix_t;
   using typename BASE::state_vector_t;
-  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 6, 6>;
+  using state_cost_matrix_t = Eigen::Matrix<scalar_t, 3, 3>;
   using typename BASE::intermediate_cost_vector_t;
   using typename BASE::terminal_cost_vector_t;
 
   /**
    * Constructor
    */
-  QuadraticEndeffectorTrackingCost(const QuadraticEndeffectorTrackingCostConfig& config)
-      : ee_Q_(config.ee_Q), ee_QFinal_(config.ee_QFinal), ee_R_(config.ee_R), kinematics_(config.kinematics) {}
+  QuadraticBaseTrackingCost(const QuadraticBaseTrackingCostConfig& config)
+      : base_Q_(config.base_Q), base_QFinal_(config.base_QFinal), base_R_(config.base_R), kinematics_(config.kinematics) {}
 
   /*
    * Copy constructor
    * @param rhs
    */
-  QuadraticEndeffectorTrackingCost(const QuadraticEndeffectorTrackingCost& rhs) = default;
+  QuadraticBaseTrackingCost(const QuadraticBaseTrackingCost& rhs) = default;
 
   /**
    * Default destructor
    */
-  ~QuadraticEndeffectorTrackingCost() override = default;
+  ~QuadraticBaseTrackingCost() override = default;
 
-  QuadraticEndeffectorTrackingCost* clone() const override;
+  QuadraticBaseTrackingCost* clone() const override;
 
  protected:
   /**
@@ -146,7 +144,7 @@ class QuadraticEndeffectorTrackingCost
    *
    * @return The cost function parameters at a certain time
    */
-  dynamic_vector_t interpolateReference(QuadraticEndeffectorTrackingCost::scalar_t time) const;
+  dynamic_vector_t interpolateReference(QuadraticBaseTrackingCost::scalar_t time) const;
 
   /**
    * Number of parameters for the terminal cost function.
@@ -159,9 +157,9 @@ class QuadraticEndeffectorTrackingCost
   Eigen::Quaternion<ad_scalar_t> matrixToQuaternion(const Eigen::Matrix<ad_scalar_t, 3, 3>& R) const;
 
  private:
-  const state_cost_matrix_t ee_Q_;
-  const input_matrix_t ee_R_;
-  const state_cost_matrix_t ee_QFinal_;
+  const state_cost_matrix_t base_Q_;
+  const input_matrix_t base_R_;
+  const state_cost_matrix_t base_QFinal_;
   const std::shared_ptr<const KinematicsInterface<CppAD::AD<CppAD::cg::CG<double>>>> kinematics_;
 };
 
