@@ -136,7 +136,7 @@ initialState
 ee_tracking_task
 {
 
-  use     1
+  use     0
 
   ; state weight matrix
   Q
