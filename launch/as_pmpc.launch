@@ -17,7 +17,7 @@
     <param name="mpc_task_file" value="$(arg mpc_task_file)" />
     <!--  -->
     <param name="base_frame" value="base_link_footprint" />    
-    <param name="odom_frame" value="odom" />
+    <param name="odom_frame" value="ma_map" />
     <param name="end_effector_frame" value="extruder_ee" />
     <!--  -->
     <param name="base_com" value="[0,0,0.086]" />

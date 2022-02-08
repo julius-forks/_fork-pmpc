@@ -37,6 +37,7 @@
 #include <perceptive_mpc/Definitions.h>
 
 #include <m3dp_msgs/TaskTrajectory.h>
+#include <m3dp_msgs/TaskPoint.h>
 #include <m3dp_msgs/PrintTrajectoryAction.h>
 #include <actionlib/server/simple_action_server.h>
 
@@ -86,7 +87,7 @@ namespace perceptive_mpc
     std::shared_ptr<PointsOnRobot> pointsOnRobot_;
     std::shared_ptr<voxblox::EsdfCachingServer> esdfCachingServer_;
 
-    // params
+    // params 
     std::string end_effector_frame_;
     std::string base_frame_;
     std::string odom_frame_;
@@ -150,6 +151,7 @@ namespace perceptive_mpc
     ros::Publisher pointsOnRobotPublisher_;
     ros::Publisher armStatePublisher_;
     ros::Publisher endEffectorPosePublisher_;
+    ros::Publisher desirecTrajectoryPublisher_;
     ros::AsyncSpinner asyncSpinner_;
 
     tf2_ros::TransformBroadcaster tfBroadcaster_;
@@ -193,6 +195,8 @@ namespace perceptive_mpc
     void runreal();
 
     void setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory);
+
+    void sendDesiredTrajectory();
 
     void printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal);
 

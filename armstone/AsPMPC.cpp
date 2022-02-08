@@ -51,6 +51,7 @@ bool AsPMPC::run()
   endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("est_ee_pose", 100);
   baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
   armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
+  desirecTrajectoryPublisher_ = nh_.advertise<m3dp_msgs::TaskTrajectory>("diagnostics/desired_trajectory", 1);  
 
   // Initialise MPCInterface
   ROS_INFO("Initialise MPCInterface");

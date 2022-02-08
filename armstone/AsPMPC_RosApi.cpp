@@ -105,9 +105,9 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
   reference0.head<Definitions::POSE_DIM>().tail<3>() = currentEEPose.getPosition().toImplementation();
   reference0.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference0.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
-  reference0.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(0.1) ; //+- 10cm
-  reference0.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(0.1);//+- 10cm
-  reference0.tail<1>() = Eigen::Matrix<double, 1, 1>(0.1);//+- 5deg
+  reference0.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(0.1); //+- 10cm
+  reference0.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(0.1); //+- 10cm
+  reference0.tail<1>() = Eigen::Matrix<double, 1, 1>(0.1);           //+- 5deg
 
   for (int i = 0; i < N + 3; i++)
   {
@@ -137,9 +137,9 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
       reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
-      reference0.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.x_tol) ;
-      reference0.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.y_tol) ;
-      reference0.tail<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.th_tol) ;
+      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.x_tol);
+      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.y_tol);
+      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.th_tol);
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
@@ -158,13 +158,55 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
       reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
+      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.x_tol);
+      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.y_tol);
+      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.th_tol);
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
       costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[2] + 1.5 + taskTrajectory.points[j].time_from_start.toSec();
     }
   }
+  sendDesiredTrajectory(); //send out the diagnostics
   trajectoryUpdated_ = true;
+}
+
+void AsPMPC::sendDesiredTrajectory()
+{
+  {
+    boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+    int N = costDesiredTrajectories_.desiredStateTrajectory().size();
+    m3dp_msgs::TaskTrajectory taskTrajectory = m3dp_msgs::TaskTrajectory();
+    taskTrajectory.points.resize(N);
+
+    for (int i = 0; i < N; i++)
+    {
+      m3dp_msgs::TaskPoint point = m3dp_msgs::TaskPoint();
+      point.ee_pose.position.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[0];
+      point.ee_pose.position.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[1];
+      point.ee_pose.position.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[2];
+      point.ee_pose.orientation.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[0];
+      point.ee_pose.orientation.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[1];
+      point.ee_pose.orientation.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[2];
+      point.ee_pose.orientation.w = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[3];
+
+      point.base_pose.position.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[0];
+      point.base_pose.position.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[1];
+      point.base_pose.position.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[2];
+      point.base_pose.orientation.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[0];
+      point.base_pose.orientation.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[1];
+      point.base_pose.orientation.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[2];
+      point.base_pose.orientation.w = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[3];
+
+      point.tol_elipse.x_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[0];
+      point.tol_elipse.y_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[1];
+      point.tol_elipse.th_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[2];
+
+      point.abs_time = ros::Time(costDesiredTrajectories_.desiredTimeTrajectory()[i]);
+      taskTrajectory.points.push_back(point);
+    }
+    desirecTrajectoryPublisher_.publish(taskTrajectory);
+  }
 }
 
 void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
