@@ -151,7 +151,7 @@ namespace perceptive_mpc
     ros::Publisher pointsOnRobotPublisher_;
     ros::Publisher armStatePublisher_;
     ros::Publisher endEffectorPosePublisher_;
-    ros::Publisher desirecTrajectoryPublisher_;
+    // ros::Publisher desirecTrajectoryPublisher_;
     ros::AsyncSpinner asyncSpinner_;
 
     tf2_ros::TransformBroadcaster tfBroadcaster_;
@@ -196,7 +196,7 @@ namespace perceptive_mpc
 
     void setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory);
 
-    void sendDesiredTrajectory();
+    // void sendDesiredTrajectory();
 
     void printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPtr &goal);
 

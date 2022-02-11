@@ -33,7 +33,7 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
   double end_time;
   {
     boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-    start_time = costDesiredTrajectories_.desiredTimeTrajectory()[2]; //Note I'm ignoring first point
+    start_time = costDesiredTrajectories_.desiredTimeTrajectory()[3]; //Note I'm ignoring first point
     end_time = costDesiredTrajectories_.desiredTimeTrajectory().back();
   }
 
@@ -74,6 +74,8 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
     feedback.tf_rate = tfLoopLoopRate_;
     feedback.obs_rate = mpcLoopRate_;
     feedback.completion = (ros::Time::now().toSec() - start_time) / (end_time - start_time);
+    feedback.start_time = start_time;
+    feedback.end_time =end_time;
     taskTrajectoryActionServer_.publishFeedback(feedback);
     r.sleep();
   }
@@ -137,10 +139,9 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
       reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
-      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.x_tol);
-      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.y_tol);
-      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.th_tol);
-
+      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.x_tol-0.05,0.05));
+      reference.tail<2>().head<1>() =  Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.y_tol-0.05,0.05));
+      reference.tail<1>() =  Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.th_tol-0.05,0.05));
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
       costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[1] + 10.0;
@@ -157,57 +158,57 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
-      reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
-      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.x_tol);
-      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.y_tol);
-      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(taskTrajectory.points[j].tol_elipse.th_tol);
+      reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation(); 
+      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.x_tol-0.05,0.025));
+      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.y_tol-0.05,0.025));
+      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.th_tol-0.05,0.025));
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[2] + 1.5 + taskTrajectory.points[j].time_from_start.toSec();
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[2] + 3.0 + taskTrajectory.points[j].time_from_start.toSec();
     }
   }
-  sendDesiredTrajectory(); //send out the diagnostics
+  // sendDesiredTrajectory(); //send out the diagnostics
   trajectoryUpdated_ = true;
 }
 
-void AsPMPC::sendDesiredTrajectory()
-{
-  {
-    boost::unique_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
-    int N = costDesiredTrajectories_.desiredStateTrajectory().size();
-    m3dp_msgs::TaskTrajectory taskTrajectory = m3dp_msgs::TaskTrajectory();
-    taskTrajectory.points.resize(N);
+// void AsPMPC::sendDesiredTrajectory()
+// {
+//   {
+//     boost::shared_lock<boost::shared_mutex> costDesiredTrajectoryLock(costDesiredTrajectoryMutex_);
+//     int N = costDesiredTrajectories_.desiredStateTrajectory().size();
+//     m3dp_msgs::TaskTrajectory taskTrajectory = m3dp_msgs::TaskTrajectory();
+//     taskTrajectory.points.resize(N);
 
-    for (int i = 0; i < N; i++)
-    {
-      m3dp_msgs::TaskPoint point = m3dp_msgs::TaskPoint();
-      point.ee_pose.position.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[0];
-      point.ee_pose.position.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[1];
-      point.ee_pose.position.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[2];
-      point.ee_pose.orientation.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[0];
-      point.ee_pose.orientation.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[1];
-      point.ee_pose.orientation.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[2];
-      point.ee_pose.orientation.w = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[3];
+//     for (int i = 0; i < N; i++)
+//     {
+//       m3dp_msgs::TaskPoint point = m3dp_msgs::TaskPoint();
+//       point.ee_pose.position.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[0];
+//       point.ee_pose.position.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[1];
+//       point.ee_pose.position.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).tail<3>()[2];
+//       point.ee_pose.orientation.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[0];
+//       point.ee_pose.orientation.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[1];
+//       point.ee_pose.orientation.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[2];
+//       point.ee_pose.orientation.w = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(0).head<4>()[3];
 
-      point.base_pose.position.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[0];
-      point.base_pose.position.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[1];
-      point.base_pose.position.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[2];
-      point.base_pose.orientation.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[0];
-      point.base_pose.orientation.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[1];
-      point.base_pose.orientation.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[2];
-      point.base_pose.orientation.w = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[3];
+//       point.base_pose.position.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[0];
+//       point.base_pose.position.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[1];
+//       point.base_pose.position.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).tail<3>()[2];
+//       point.base_pose.orientation.x = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[0];
+//       point.base_pose.orientation.y = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[1];
+//       point.base_pose.orientation.z = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[2];
+//       point.base_pose.orientation.w = costDesiredTrajectories_.desiredStateTrajectory()[i].segment<7>(7).head<4>()[3];
 
-      point.tol_elipse.x_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[0];
-      point.tol_elipse.y_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[1];
-      point.tol_elipse.th_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[2];
+//       point.tol_elipse.x_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[0];
+//       point.tol_elipse.y_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[1];
+//       point.tol_elipse.th_tol = costDesiredTrajectories_.desiredStateTrajectory()[i].tail<3>()[2];
 
-      point.abs_time = ros::Time(costDesiredTrajectories_.desiredTimeTrajectory()[i]);
-      taskTrajectory.points.push_back(point);
-    }
-    desirecTrajectoryPublisher_.publish(taskTrajectory);
-  }
-}
+//       point.abs_time = ros::Time(costDesiredTrajectories_.desiredTimeTrajectory()[i]);
+//       taskTrajectory.points.push_back(point);
+//     }
+//     desirecTrajectoryPublisher_.publish(taskTrajectory);
+//   }
+// }
 
 void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &msgPtr)
 {
@@ -243,12 +244,18 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   reference0.head<Definitions::POSE_DIM>().tail<3>() = currentPose.getPosition().toImplementation();
   reference0.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference0.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference0.tail<3>().segment<1>(0) = Eigen::Matrix<double, 1, 1>(0.1);
+  reference0.tail<3>().segment<1>(1) = Eigen::Matrix<double, 1, 1>(0.1);
+  reference0.tail<3>().segment<1>(2) = Eigen::Matrix<double, 1, 1>(0.1);
 
   reference_vector_t reference1;
   reference1.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-  reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
+  reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();  
   reference1.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference1.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference1.tail<3>().segment<1>(0) = Eigen::Matrix<double, 1, 1>(0.1);
+  reference1.tail<3>().segment<1>(1) = Eigen::Matrix<double, 1, 1>(0.1);
+  reference1.tail<3>().segment<1>(2) = Eigen::Matrix<double, 1, 1>(0.1);
 
   costDesiredTrajectories_.desiredStateTrajectory()[0] = reference0;
   costDesiredTrajectories_.desiredStateTrajectory()[1] = reference1;
@@ -258,7 +265,7 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
   auto minTimeLinear = (desiredPose.getPosition() - currentPose.getPosition()).norm() / maxLinearVelocity_;
   auto minTimeAngular = std::abs(desiredPose.getRotation().getDisparityAngle(currentPose.getRotation())) / maxAngularVelocity_;
 
-  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 2;
+  double segmentDuration = std::max(minTimeLinear, minTimeAngular) + 10;
 
   costDesiredTrajectories_.desiredTimeTrajectory()[0] = ros::Time::now().toSec();
   costDesiredTrajectories_.desiredTimeTrajectory()[1] = costDesiredTrajectories_.desiredTimeTrajectory()[0] + segmentDuration;

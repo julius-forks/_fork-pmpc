@@ -76,6 +76,36 @@ inline ocs2::dynamic_vector_t interpolateBaseArmElipseTrajectory(const ocs2::sca
 
     reference.segment<3>(14) = (1 - tau) * stateTrajectory[timeAIdx].segment<3>(14) +
                           tau * stateTrajectory[timeAIdx + 1].segment<3>(14);
+
+    // std::cerr << "t:"
+    //           << time -timeTrajectory[0]
+    //           << ", i:"
+    //           << timeAIdx
+    //           << ", t_i:"
+    //           << timeTrajectory[timeAIdx]-timeTrajectory[0]
+    //           << ", t_i+1:"
+    //           << timeTrajectory[timeAIdx+1]-timeTrajectory[0]
+    //           << "\n"
+    //           << std::endl;
+
+    // std::cerr << "e_i:"
+    //           << stateTrajectory[timeAIdx].segment<3>(14).transpose()
+    //           << ", e_i+1:"
+    //           << stateTrajectory[timeAIdx+1].segment<3>(14).transpose()
+    //           << ", e_intep:"
+    //           << reference.segment<3>(14).transpose()
+    //           << "\n"
+    //           << std::endl;
+
+    //     std::cerr << "b_i:"
+    //           << stateTrajectory[timeAIdx].segment<3>(11).transpose()
+    //           << ", b_i+1:"
+    //           << stateTrajectory[timeAIdx+1].segment<3>(11).transpose()
+    //           << ", b_intep:"
+    //           << reference.segment<3>(11).transpose()
+    //           << "\n"
+    //           << std::endl;
+   
     
     /*    std::cerr << "t:" << t << ", tau:" << tau << ", t_start:" << desiredTimeTrajectory.front() << ", t_stop:" <<
        desiredTimeTrajectory.back()

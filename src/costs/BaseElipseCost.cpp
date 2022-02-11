@@ -68,9 +68,9 @@ void BaseElipseCost::intermediateCostFunction(ad_scalar_t time, const ad_dynamic
   // costValues(1) = sigma_ * (((ad_scalar_t) 0.04) - (dxyz[1]*dxyz[1]));
   // costValues(2) = sigma_ * (((ad_scalar_t) 0.04) - (drpy[2]*drpy[2]));  
 
-  costValues(0) = sigma_ * ((((ad_scalar_t) 0.025) + elipse_xyth[0]) - CppAD::CondExpGt(dxyz[0], (ad_scalar_t)0, dxyz[0], -dxyz[0]));
-  costValues(1) = sigma_ * ((((ad_scalar_t) 0.025) + elipse_xyth[1]) - CppAD::CondExpGt(dxyz[1], (ad_scalar_t)0, dxyz[1], -dxyz[1]));
-  costValues(2) = sigma_ * ((((ad_scalar_t) 0.025) + elipse_xyth[2]) - CppAD::CondExpGt(drpy[2], (ad_scalar_t)0, drpy[2], -drpy[2]));
+  costValues(0) = sigma_ * ((elipse_xyth[0]) - CppAD::CondExpGt(dxyz[0], (ad_scalar_t)0, dxyz[0], -dxyz[0]));
+  costValues(1) = sigma_ * ((elipse_xyth[1]) - CppAD::CondExpGt(dxyz[1], (ad_scalar_t)0, dxyz[1], -dxyz[1]));
+  costValues(2) = sigma_ * ((elipse_xyth[2]) - CppAD::CondExpGt(drpy[2], (ad_scalar_t)0, drpy[2], -drpy[2]));
 
   // costValues(0) = sigma_ * (((ad_scalar_t) 0.1) - CppAD::CondExpGt(dxyz[0], (ad_scalar_t)0, dxyz[0], -dxyz[0]));
   // costValues(1) = sigma_ * (((ad_scalar_t) 0.1) - CppAD::CondExpGt(dxyz[1], (ad_scalar_t)0, dxyz[1], -dxyz[1]));

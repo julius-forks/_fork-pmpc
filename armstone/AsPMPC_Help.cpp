@@ -194,7 +194,7 @@ void AsPMPC::loadTransforms()
       }
       catch (tf2::TransformException &ex)
       {
-        ROS_ERROR_THROTTLE(1.0, "%s", ex.what());
+        ROS_ERROR_THROTTLE(1.0, "pmpc: %s", ex.what());
         continue;
       }
       Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,
@@ -218,7 +218,7 @@ void AsPMPC::loadTransforms()
       }
       catch (tf2::TransformException &ex)
       {
-        ROS_ERROR_THROTTLE(1.0, "%s", ex.what());
+        ROS_ERROR_THROTTLE(1.0, "pmpc:  %s", ex.what());
         continue;
       }
       Eigen::Quaterniond quat(transformStamped.transform.rotation.w, transformStamped.transform.rotation.x,

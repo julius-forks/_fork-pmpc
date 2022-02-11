@@ -51,7 +51,7 @@ bool AsPMPC::run()
   endEffectorPosePublisher_ = nh_.advertise<geometry_msgs::PoseStamped>("est_ee_pose", 100);
   baseTwistPub_ = nh_.advertise<geometry_msgs::Twist>("basetwistcmd_topic", 1);
   armJointVelPub_ = nh_.advertise<std_msgs::Float64MultiArray>("armjointvelcmd_topic", 1);
-  desirecTrajectoryPublisher_ = nh_.advertise<m3dp_msgs::TaskTrajectory>("diagnostics/desired_trajectory", 1);  
+  // desirecTrajectoryPublisher_ = nh_.advertise<m3dp_msgs::TaskTrajectory>("diagnostics/desired_trajectory", 1);
 
   // Initialise MPCInterface
   ROS_INFO("Initialise MPCInterface");
@@ -179,7 +179,7 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
         if (sim_mode_)
         {
           boost::unique_lock<boost::shared_mutex> lockGuard(observationMutex_); //write mutex
-          observation_.state() = optimalState_;
+          observation_.state() = optimalState_;          
           observation_.time() = ros::Time::now().toSec();
           observation = observation_;
         }
@@ -211,7 +211,7 @@ bool AsPMPC::trackerLoop(ros::Rate rate)
                                         << "    controlInput_arm_vel:  " << controlInput.transpose().tail<6>() << std::endl
                                         << "    Full Control INput:  " << controlInput.transpose() << std::endl
                                         << std::endl);
-      optimalState_ = optimalState;
+      optimalState_ = optimalState;      
     }
     catch (const std::runtime_error &ex)
     {
@@ -344,6 +344,9 @@ void AsPMPC::initializeCostDesiredTrajectory()
   reference.head<Definitions::POSE_DIM>().tail<3>() = currentEndEffectorPose.getPosition().toImplementation();
   reference.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
+  reference.tail<3>().segment<1>(0) = Eigen::Matrix<double, 1, 1>(0.1);
+  reference.tail<3>().segment<1>(1) = Eigen::Matrix<double, 1, 1>(0.1);
+  reference.tail<3>().segment<1>(2) = Eigen::Matrix<double, 1, 1>(0.1);
 
   Observation observation;
   {
