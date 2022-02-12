@@ -75,7 +75,7 @@ void AsPMPC::printTrajectoryActionCb(const m3dp_msgs::PrintTrajectoryGoalConstPt
     feedback.obs_rate = mpcLoopRate_;
     feedback.completion = (ros::Time::now().toSec() - start_time) / (end_time - start_time);
     feedback.start_time = start_time;
-    feedback.end_time =end_time;
+    feedback.end_time = end_time;
     taskTrajectoryActionServer_.publishFeedback(feedback);
     r.sleep();
   }
@@ -139,12 +139,12 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
       reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
-      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.x_tol-0.05,0.05));
-      reference.tail<2>().head<1>() =  Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.y_tol-0.05,0.05));
-      reference.tail<1>() =  Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.th_tol-0.05,0.05));
+      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.x_tol - 0.05, 0.05));
+      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.y_tol - 0.05, 0.05));
+      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.th_tol - 0.05, 0.05));
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
-      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[1] + 10.0;
+      costDesiredTrajectories_.desiredTimeTrajectory()[i] = costDesiredTrajectories_.desiredTimeTrajectory()[1] + 20.0;
     }
     else
     {
@@ -158,10 +158,10 @@ void AsPMPC::setTaskTrajectory(const m3dp_msgs::TaskTrajectory &taskTrajectory)
       reference.head<Definitions::POSE_DIM>().head<4>() = desiredEEPose.getRotation().toImplementation().coeffs();
       reference.head<Definitions::POSE_DIM>().tail<3>() = desiredEEPose.getPosition().toImplementation();
       reference.segment<7>(Definitions::POSE_DIM).head<4>() = desiredBPose.getRotation().toImplementation().coeffs();
-      reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation(); 
-      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.x_tol-0.05,0.025));
-      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.y_tol-0.05,0.025));
-      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.th_tol-0.05,0.025));
+      reference.segment<7>(Definitions::POSE_DIM).tail<3>() = desiredBPose.getPosition().toImplementation();
+      reference.tail<3>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.x_tol - 0.05, 0.025));
+      reference.tail<2>().head<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.y_tol - 0.05, 0.025));
+      reference.tail<1>() = Eigen::Matrix<double, 1, 1>(std::max(taskTrajectory.points[j].tol_elipse.th_tol - 0.05, 0.025));
 
       costDesiredTrajectories_.desiredStateTrajectory()[i] = reference; //shove into desire STATE trajecotry
       costDesiredTrajectories_.desiredInputTrajectory()[i] = MpcInterface::input_vector_t::Zero();
@@ -250,7 +250,7 @@ void AsPMPC::desiredEndEffectorPoseCb(const geometry_msgs::PoseStampedConstPtr &
 
   reference_vector_t reference1;
   reference1.head<Definitions::POSE_DIM>().head<4>() = desiredPose.getRotation().toImplementation().coeffs();
-  reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();  
+  reference1.head<Definitions::POSE_DIM>().tail<3>() = desiredPose.getPosition().toImplementation();
   reference1.segment<7>(Definitions::POSE_DIM).head<4>() = currentBasePose.getRotation().getUnique().toImplementation().coeffs();
   reference1.segment<7>(Definitions::POSE_DIM).tail<3>() = currentBasePose.getPosition().toImplementation();
   reference1.tail<3>().segment<1>(0) = Eigen::Matrix<double, 1, 1>(0.1);
@@ -354,12 +354,12 @@ void AsPMPC::jointStatesCb(const sensor_msgs::JointStateConstPtr &msgPtr)
     observation_.state(4) = ts.transform.translation.x;
     observation_.state(5) = ts.transform.translation.y;
     observation_.state(6) = ts.transform.translation.z;
-    observation_.state(7) = msgPtr->position[4];
-    observation_.state(8) = msgPtr->position[5];
-    observation_.state(9) = msgPtr->position[6];
-    observation_.state(10) = msgPtr->position[7];
-    observation_.state(11) = msgPtr->position[8];
-    observation_.state(12) = msgPtr->position[9];
+    observation_.state(7) = observation_.state(7) * 0.7 + msgPtr->position[4] * 0.3;
+    observation_.state(8) = observation_.state(8) * 0.7 + msgPtr->position[5] * 0.3;
+    observation_.state(9) = observation_.state(9) * 0.7 + msgPtr->position[6] * 0.3;
+    observation_.state(10) = observation_.state(10) * 0.7 + msgPtr->position[7] * 0.3;
+    observation_.state(11) = observation_.state(11) * 0.7 + msgPtr->position[8] * 0.3;
+    observation_.state(12) = observation_.state(12) * 0.7 + msgPtr->position[9] * 0.3;
     observation_.time() = ros::Time::now().toSec();
     lastJointStateTime_ = ros::Time::now().toSec();
   }
